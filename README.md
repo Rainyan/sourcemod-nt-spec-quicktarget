@@ -6,4 +6,6 @@ SourceMod plugin for Neotokyo. Binds for quickly spectating where the action is.
 * [SourceMod Neotokyo include](https://github.com/softashell/sourcemod-nt-include)
 
 # Usage
+Spectators may bind the commands as described below:
+
 ![Plugin bindings example](https://github.com/Rainyan/sourcemod-nt-spec-quicktarget/raw/main/promo/binds_example_output.png "Plugin bindings example")
