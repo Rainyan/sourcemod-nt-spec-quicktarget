@@ -370,9 +370,11 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
 			}
 		}
 		else {
+#if defined DEBUG
 			PrintToChat(client, "Reached target (obsmode: %d, handle: %d)",
 				GetEntProp(client, Prop_Send, "m_iObserverMode"),
 				GetEntPropEnt(client, Prop_Send, "m_hObserverTarget"));
+#endif
 			
 			// Reached target, start following the spectated player
 			SetEntProp(client, Prop_Send, "m_iObserverMode", OBS_MODE_FOLLOW);
