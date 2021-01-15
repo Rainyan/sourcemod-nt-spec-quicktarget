@@ -4,7 +4,7 @@
 
 #include <neotokyo>
 
-#define PLUGIN_VERSION "0.5"
+#define PLUGIN_VERSION "0.5.1"
 
 #define NEO_MAX_PLAYERS 32
 
@@ -104,14 +104,7 @@ public void OnEntityCreated(int entity, const char[] classname)
 {
 	if (StrEqual(classname, "grenade_projectile"))
 	{
-		_last_live_grenade = entity;
-	}
-}
-
-public void OnEntityDestroyed(int entity)
-{
-	if (entity == _last_live_grenade) {
-		_last_live_grenade = 0;
+		_last_live_grenade = EntIndexToEntRef(entity);
 	}
 }
 
