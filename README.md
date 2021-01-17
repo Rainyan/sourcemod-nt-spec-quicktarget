@@ -11,9 +11,10 @@ This plugin depends on the [nt_ghostcap](https://github.com/softashell/nt-source
 If for whatever reason you don't want to run the nt_ghostcap plugin, uncomment the *REQUIRE_NT_GHOSTCAP_PLUGIN* define in the source code before compiling to disable ghost related features.
 
 # Usage
-Spectators may bind the commands as described below:
 
-## Console commands (recommended to use as binds)
+## Console commands
+These commands are recommended to be used as binds. They only work for players in the spectator team.
+
 * *sm_binds* — Print this usage info into game console.
 
 * *sm_spec_follow_grenade* — Follow the last live HE grenade.
