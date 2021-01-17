@@ -35,4 +35,4 @@ These cookies are opt-in (default is off), and the value will persist on the ser
 Supported values: 0 and 1. You can set these commands in the game console.
 
 * *sm_cookies spec_newround_ghost 0/1* — Whether to automatically spectate the ghost spawn position on new rounds.
-* *sm_cookies spec_newround_ghost_no_fade 0/1* — By default, the newround spectating will apply a short fade-from-black to hide the visual of the ghost spawning from thin air. This cookies controls whether to disable that fade effect.
+* *sm_cookies spec_newround_ghost_no_fade 0/1* — By default, the *spec_newround_ghost* option will apply a short fade-from-black to hide the visual of the ghost spawning from thin air. This cookies controls whether to disable that fade effect.
