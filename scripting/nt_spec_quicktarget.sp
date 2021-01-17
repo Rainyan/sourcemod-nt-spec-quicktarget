@@ -5,7 +5,7 @@
 
 #include <neotokyo>
 
-#define PLUGIN_VERSION "0.6.0"
+#define PLUGIN_VERSION "0.6.1"
 
 #define NEO_MAX_PLAYERS 32
 
@@ -17,7 +17,7 @@
 // to remove support for ghost related spectating events detection.
 #define REQUIRE_NT_GHOSTCAP_PLUGIN
 
-#define DEBUG
+//#define DEBUG
 
 static stock float vec3_origin[3];
 
