@@ -1,10 +1,11 @@
 #include <sourcemod>
 #include <sdkhooks>
 #include <sdktools>
+#include <clientprefs>
 
 #include <neotokyo>
 
-#define PLUGIN_VERSION "0.5.1"
+#define PLUGIN_VERSION "0.6.0"
 
 #define NEO_MAX_PLAYERS 32
 
@@ -16,7 +17,7 @@
 // to remove support for ghost related spectating events detection.
 #define REQUIRE_NT_GHOSTCAP_PLUGIN
 
-//#define DEBUG
+#define DEBUG
 
 static stock float vec3_origin[3];
 
@@ -37,7 +38,17 @@ static int _last_shooter_userid;
 
 static int _last_live_grenade;
 
+static int _last_ghost;
+static bool _is_currently_displaying_ghost_location;
+static float _ghost_display_location[3];
+
 ConVar g_hCvar_LerpSpeed = null;
+
+Handle _cookie_AutoSpecGhostSpawn = INVALID_HANDLE;
+Handle _cookie_NoFadeFromBlackOnAutoSpecGhost = INVALID_HANDLE;
+
+static bool _client_wants_autospec_ghost_spawn[NEO_MAX_PLAYERS + 1];
+static bool _client_wants_no_fade_for_autospec_ghost_spawn[NEO_MAX_PLAYERS + 1];
 
 public Plugin myinfo = {
 	name = "NT Spectator Quick Target",
@@ -82,6 +93,31 @@ public void OnPluginStart()
 	else if (!HookEventEx("player_team", Event_PlayerTeam, EventHookMode_Pre)) {
 		SetFailState("Failed to hook event player_team");
 	}
+	else if (!HookEventEx("game_round_start", Event_RoundStart, EventHookMode_Post)) {
+		SetFailState("Failed to hook event game_round_start");
+	}
+	
+	_cookie_AutoSpecGhostSpawn = RegClientCookie("spec_newround_ghost",
+		"NT Spectator Quick Target plugin: Whether to automatically spectate the ghost spawn position on new rounds.",
+		CookieAccess_Public);
+	_cookie_NoFadeFromBlackOnAutoSpecGhost = RegClientCookie("spec_newround_ghost_no_fade",
+		"NT Spectator Quick Target plugin: Whether to disable the fade-from-black effect when speccing a ghost spawn.",
+		CookieAccess_Public);
+	
+	for (int client = 1; client <= MaxClients; ++client) {
+		if (AreClientCookiesCached(client)) {
+			OnClientCookiesCached(client);
+		}
+	}
+	RegConsoleCmd("sm_cookies", Cmd_Cookies);
+}
+
+public Action Cmd_Cookies(int client, int argc)
+{
+	if (AreClientCookiesCached(client)) {
+		OnClientCookiesCached(client);
+	}
+	return Plugin_Continue;
 }
 
 #if defined REQUIRE_NT_GHOSTCAP_PLUGIN
@@ -93,18 +129,35 @@ public void OnAllPluginsLoaded()
 }
 #endif
 
+public void OnClientCookiesCached(int client)
+{
+	char wants_ghost_spawn_spec[2];
+	char wants_no_fade[2];
+	
+	GetClientCookie(client, _cookie_AutoSpecGhostSpawn, wants_ghost_spawn_spec, sizeof(wants_ghost_spawn_spec));
+	GetClientCookie(client, _cookie_NoFadeFromBlackOnAutoSpecGhost, wants_no_fade, sizeof(wants_no_fade));
+	
+	_client_wants_autospec_ghost_spawn[client] = (wants_ghost_spawn_spec[0] != 0 && wants_ghost_spawn_spec[0] != '0');
+	_client_wants_no_fade_for_autospec_ghost_spawn[client] = (wants_no_fade[0] != 0 && wants_no_fade[0] != '0');
+}
+
 public void OnClientDisconnected(int client)
 {
 	_spec_userid_target[client] = 0;
 	_is_lerping_specview[client] = false;
 	_is_spectator[client] = false;
+	
+	_client_wants_autospec_ghost_spawn[client] = false;
+	_client_wants_no_fade_for_autospec_ghost_spawn[client] = false;
 }
 
 public void OnEntityCreated(int entity, const char[] classname)
 {
-	if (StrEqual(classname, "grenade_projectile"))
-	{
+	if (StrEqual(classname, "grenade_projectile")) {
 		_last_live_grenade = EntIndexToEntRef(entity);
+	}
+	else if (StrEqual(classname, "weapon_ghost")) {
+		_last_ghost = EntIndexToEntRef(entity);
 	}
 }
 
@@ -149,6 +202,69 @@ public void Event_PlayerTeam(Event event, const char[] name,
 	else {
 		_is_spectator[this_client] = false;
 	}
+}
+
+static Handle g_hTimer_FinishDisplayGhostSpawnLocation = INVALID_HANDLE;
+
+public void Event_RoundStart(Event event, const char[] name,
+	bool dontBroadcast)
+{
+	if (_last_ghost != 0) {
+		_is_currently_displaying_ghost_location = true;
+		_ghost_display_location = vec3_origin;
+		
+		if (g_hTimer_FinishDisplayGhostSpawnLocation != INVALID_HANDLE) {
+			KillTimer(g_hTimer_FinishDisplayGhostSpawnLocation);
+		}
+		g_hTimer_FinishDisplayGhostSpawnLocation = CreateTimer(5.0, Timer_FinishDisplayGhostSpawnLocation);
+		
+		FadeSpecs();
+	}
+}
+
+void FadeSpecs()
+{
+	int specs[NEO_MAX_PLAYERS];
+	int num_specs;
+	
+	for (int client = 1; client <= MaxClients; ++client) {
+		if (!IsClientInGame(client) || IsFakeClient(client)) {
+			continue;
+		}
+		
+		if (!_client_wants_autospec_ghost_spawn[client]) {
+			continue;
+		}
+		
+		if (_client_wants_no_fade_for_autospec_ghost_spawn[client]) {
+			continue;
+		}
+		
+		specs[num_specs++] = client;
+	}
+	
+	if (num_specs == 0) {
+		return;
+	}
+	
+	Handle userMsg = StartMessage("Fade", specs, num_specs);
+	BfWriteShort(userMsg, 1000); // Fade alpha transition duration, in ms
+	BfWriteShort(userMsg, 200); // How long to sustain the fade, in ms
+	BfWriteShort(userMsg, 0x0001); // Fade in flag
+	BfWriteByte(userMsg, 0); // RGBA red
+	BfWriteByte(userMsg, 0); // RGBA green
+	BfWriteByte(userMsg, 0); // RGBA blue
+	BfWriteByte(userMsg, 255); // RGBA alpha
+	EndMessage();
+}
+
+public Action Timer_FinishDisplayGhostSpawnLocation(Handle timer)
+{
+	_is_currently_displaying_ghost_location = false;
+	_ghost_display_location = vec3_origin;
+	
+	g_hTimer_FinishDisplayGhostSpawnLocation = INVALID_HANDLE;
+	return Plugin_Stop;
 }
 
 #if defined REQUIRE_NT_GHOSTCAP_PLUGIN
@@ -282,6 +398,58 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
 		return Plugin_Continue;
 	}
 	
+	// We should be doing a fancy camera pan of the new ghost spawn location
+	if (_client_wants_autospec_ghost_spawn[client] && _is_currently_displaying_ghost_location) {
+		if (buttons != 0 || mouse[0] != 0 || mouse[1] != 0) {
+			_is_currently_displaying_ghost_location = false;
+			return Plugin_Continue;
+		}
+		
+		int ghost = EntRefToEntIndex(_last_ghost);
+		if (ghost == INVALID_ENT_REFERENCE) {
+			return Plugin_Continue;
+		}
+		
+		float start_pos[3];
+		GetClientEyePosition(client, start_pos);
+		
+		if (VectorsEqual(_ghost_display_location, vec3_origin)) {
+			GetEntPropVector(_last_ghost, Prop_Send, "m_vecOrigin", _ghost_display_location);
+			_ghost_display_location[0] += GetRandomFloat(-128.0, 128.0);
+			_ghost_display_location[1] += GetRandomFloat(-128.0, 128.0);
+			_ghost_display_location[2] += 64.0;
+#if defined DEBUG
+			if (VectorsEqual(_ghost_display_location, vec3_origin)) {
+				PrintToServer("!! VectorsEqual: _ghost_display_location, vec3_origin");
+				return Plugin_Continue;
+			}
+#endif
+		}
+		
+		// Make sure we're free flying for the smooth transition
+		if (GetEntProp(client, Prop_Send, "m_iObserverMode") != OBS_MODE_FREEFLY) {
+			SetEntProp(client, Prop_Send, "m_iObserverMode", OBS_MODE_FREEFLY);
+		}
+		
+		float start_ang[3];
+		float target_dir[3];
+		float target_ang[3];
+		float final_ang[3];
+		
+		float actual_ghost_pos[3];
+		GetEntPropVector(_last_ghost, Prop_Send, "m_vecOrigin", actual_ghost_pos);
+		
+		GetClientEyeAngles(client, start_ang);
+		SubtractVectors(actual_ghost_pos, start_pos, target_dir);
+		NormalizeVector(target_dir, target_dir);
+		GetVectorAngles(target_dir, target_ang);
+		LerpAngles(start_ang, target_ang, final_ang);
+		
+		TeleportEntity(client, _ghost_display_location, final_ang, NULL_VECTOR);
+		
+		return Plugin_Continue;
+	}
+	
 	// No spectator transition active
 	if (_spec_userid_target[client] == 0) {
 		return Plugin_Continue;
@@ -290,6 +458,7 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
 	// Spectator is overriding the transition with their input
 	if (buttons != 0) {
 		_spec_userid_target[client] = 0;
+		_is_currently_displaying_ghost_location = false;
 		return Plugin_Continue;
 	}
 	
