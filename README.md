@@ -17,6 +17,7 @@ These commands are recommended to be used as binds. They only work for players i
 
 * *sm_binds* — Print this usage info into game console.
 
+* *sm_spec_toggle_lerp* — Toggle smoothly lerping to the spectating events of this plugin. Defaults to off.
 * *sm_spec_follow_grenade* — Follow the last live HE grenade.
 * *sm_spec_last_hurt* — Target on the last player who was damaged.
 * *sm_spec_last_shooter* — Target on the last player who fired their weapon.
