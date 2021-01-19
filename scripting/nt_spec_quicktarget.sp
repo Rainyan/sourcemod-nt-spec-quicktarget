@@ -5,7 +5,7 @@
 
 #include <neotokyo>
 
-#define PLUGIN_VERSION "0.6.2"
+#define PLUGIN_VERSION "0.6.3"
 
 #define NEO_MAX_PLAYERS 32
 
@@ -228,7 +228,7 @@ void FadeSpecs()
 	int num_specs;
 	
 	for (int client = 1; client <= MaxClients; ++client) {
-		if (!IsClientInGame(client) || IsFakeClient(client) || GetClientTeam(client) != TEAM_SPECTATOR) {
+		if (!IsClientInGame(client) || GetClientTeam(client) != TEAM_SPECTATOR) {
 			continue;
 		}
 		
