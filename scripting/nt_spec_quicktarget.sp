@@ -599,7 +599,7 @@ stock float LerpAngles(const float a[3], const float b[3], float res[3], const f
 }
 
 // Lerp that takes the shortest rotation around a circle
-stock float LerpAngle(const float a, const float b, float t = 0.0)
+stock float LerpAngle(const float a, const float b, const float t = 0.0)
 {
 	float dt = Clamp((b - a) - RoundToFloor((b - a) / 360.0) * 360.0, 0.0, 360.0);
 	return Lerp(a, a + (dt > 180 ? dt - 360 : dt), t);
