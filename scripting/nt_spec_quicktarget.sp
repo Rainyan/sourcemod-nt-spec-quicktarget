@@ -5,7 +5,7 @@
 
 #include <neotokyo>
 
-#define PLUGIN_VERSION "0.6.4"
+#define PLUGIN_VERSION "0.6.5"
 
 #define NEO_MAX_PLAYERS 32
 
@@ -46,9 +46,11 @@ ConVar g_hCvar_LerpSpeed = null;
 
 Handle _cookie_AutoSpecGhostSpawn = INVALID_HANDLE;
 Handle _cookie_NoFadeFromBlackOnAutoSpecGhost = INVALID_HANDLE;
+Handle _cookie_AutoRotate = INVALID_HANDLE;
 
 static bool _client_wants_autospec_ghost_spawn[NEO_MAX_PLAYERS + 1];
 static bool _client_wants_no_fade_for_autospec_ghost_spawn[NEO_MAX_PLAYERS + 1];
+static bool _client_wants_auto_rotate[NEO_MAX_PLAYERS + 1];
 
 public Plugin myinfo = {
 	name = "NT Spectator Quick Target",
@@ -103,6 +105,9 @@ public void OnPluginStart()
 	_cookie_NoFadeFromBlackOnAutoSpecGhost = RegClientCookie("spec_newround_ghost_no_fade",
 		"NT Spectator Quick Target plugin: Whether to disable the fade-from-black effect when speccing a ghost spawn.",
 		CookieAccess_Public);
+	_cookie_AutoRotate = RegClientCookie("spec_autorotate",
+		"NT Spectator Quick Target plugin: Automatically rotate according to spectator direction.",
+		CookieAccess_Public);
 	
 	for (int client = 1; client <= MaxClients; ++client) {
 		if (AreClientCookiesCached(client)) {
@@ -133,12 +138,15 @@ public void OnClientCookiesCached(int client)
 {
 	char wants_ghost_spawn_spec[2];
 	char wants_no_fade[2];
+	char wants_auto_rotate[2];
 	
 	GetClientCookie(client, _cookie_AutoSpecGhostSpawn, wants_ghost_spawn_spec, sizeof(wants_ghost_spawn_spec));
 	GetClientCookie(client, _cookie_NoFadeFromBlackOnAutoSpecGhost, wants_no_fade, sizeof(wants_no_fade));
+	GetClientCookie(client, _cookie_AutoRotate, wants_auto_rotate, sizeof(wants_auto_rotate));
 	
 	_client_wants_autospec_ghost_spawn[client] = (wants_ghost_spawn_spec[0] != 0 && wants_ghost_spawn_spec[0] != '0');
 	_client_wants_no_fade_for_autospec_ghost_spawn[client] = (wants_no_fade[0] != 0 && wants_no_fade[0] != '0');
+	_client_wants_auto_rotate[client] = (wants_auto_rotate[0] != 0 && wants_auto_rotate[0] != '0');
 }
 
 public void OnClientDisconnected(int client)
@@ -149,6 +157,7 @@ public void OnClientDisconnected(int client)
 	
 	_client_wants_autospec_ghost_spawn[client] = false;
 	_client_wants_no_fade_for_autospec_ghost_spawn[client] = false;
+	_client_wants_auto_rotate[client] = false;
 }
 
 public void OnEntityCreated(int entity, const char[] classname)
@@ -542,12 +551,23 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
 			SetEntProp(client, Prop_Send, "m_iObserverMode", OBS_MODE_FOLLOW);
 			SetEntPropEnt(client, Prop_Send, "m_hObserverTarget", target_client);
 			_spec_userid_target[client] = 0;
+			
+			if (_client_wants_auto_rotate[client]) {
+				GetClientAbsAngles(target_client, final_ang);
+				TeleportEntity(client, NULL_VECTOR, final_ang, NULL_VECTOR);
+			}
 		}
 	}
 	else {
 		SetEntProp(client, Prop_Send, "m_iObserverMode", OBS_MODE_FOLLOW);
 		SetEntPropEnt(client, Prop_Send, "m_hObserverTarget", target_client);
 		_spec_userid_target[client] = 0;
+		
+		if (_client_wants_auto_rotate[client]) {
+			float final_ang[3];
+			GetClientAbsAngles(target_client, final_ang);
+			TeleportEntity(client, NULL_VECTOR, final_ang, NULL_VECTOR);
+		}
 	}
 	
 	return Plugin_Continue;
