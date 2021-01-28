@@ -531,10 +531,12 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
 		GetVectorAngles(target_dir, target_ang);
 		LerpAngles(start_ang, target_ang, final_ang);
 		
-		TeleportEntity(client, final_pos, final_ang, NULL_VECTOR);
-		
 		// Observer follow mode distance from spectated player is 100 units (expressed as squared here)
-		if (GetVectorDistance(start_pos, target_pos, true) > 10000) {
+		bool reached_target_distance = (!(GetVectorDistance(start_pos, target_pos, true) > 10000));
+		
+		TeleportEntity(client, final_pos, (reached_target_distance && _client_wants_auto_rotate[client]) ? NULL_VECTOR : final_ang, NULL_VECTOR);
+		
+		if (!reached_target_distance) {
 			// Make sure we're free flying for the smooth transition
 			if (GetEntProp(client, Prop_Send, "m_iObserverMode") != OBS_MODE_FREEFLY) {
 				SetEntProp(client, Prop_Send, "m_iObserverMode", OBS_MODE_FREEFLY);
