@@ -28,7 +28,10 @@ These commands are recommended to be used as binds. They only work for players i
 
 ## Cvars
 **TODO: turn these into cookies**
-* *sm_spec_lerp_speed* — Server cvar for controlling the lerp speed ("sm_cvar ..."). Default: 2. Range: (0.001 - 10).
+
+These values can be set in the server with *"sm_cvar ..."*, or in config files.
+
+* *sm_spec_lerp_speed* — Server cvar for controlling the lerp speed. Default: 2. Range: (0.001 - 10).
 
 ## Cookies
 These per-client cookies are opt-in (default is off), and the value will persist on the server.
