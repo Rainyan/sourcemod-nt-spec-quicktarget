@@ -716,18 +716,18 @@ int mod(int a, int b)
     return r < 0 ? r + (b < 0 ? -b : b) : r;
 }
 
-void GetFreeflyCameraPosBehindPlayer(int client, const float eye_ang[3], float[3] out_pos)
+void GetFreeflyCameraPosBehindPlayer(int client, const float camera_ang[3], float[3] out_camera_pos)
 {
 	if (!IsClientInGame(client)) {
 		ThrowError("Client is not in game");
 	}
 	
-	GetClientEyePosition(client, out_pos);
+	GetClientEyePosition(client, out_camera_pos);
 	
 	float sp, sy, sr, cp, cy, cr;
-	GetSinCos(eye_ang[0], sp, cp);
-	GetSinCos(eye_ang[1], sy, cy);
-	GetSinCos(eye_ang[2], sr, cr);
+	GetSinCos(camera_ang[0], sp, cp);
+	GetSinCos(camera_ang[1], sy, cy);
+	GetSinCos(camera_ang[2], sr, cr);
 	
 	float crcy = cr * cy;
 	float crsy = cr * sy;
@@ -753,9 +753,9 @@ void GetFreeflyCameraPosBehindPlayer(int client, const float eye_ang[3], float[3
 		0.0
 	};
 	
-	out_pos[0] += GetVectorDotProduct(offset, matrix[0]);
-	out_pos[1] += GetVectorDotProduct(offset, matrix[1]);
-	out_pos[2] += GetVectorDotProduct(offset, matrix[2]);
+	out_camera_pos[0] += GetVectorDotProduct(offset, matrix[0]);
+	out_camera_pos[1] += GetVectorDotProduct(offset, matrix[1]);
+	out_camera_pos[2] += GetVectorDotProduct(offset, matrix[2]);
 }
 
 stock void GetSinCos(float value, float& sine, float& cosine)
