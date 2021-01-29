@@ -5,7 +5,7 @@
 
 #include <neotokyo>
 
-#define PLUGIN_VERSION "0.6.7"
+#define PLUGIN_VERSION "0.6.8"
 
 #define NEO_MAX_PLAYERS 32
 
@@ -16,6 +16,8 @@
 // If for whatever reason you don't want to run that plugin, comment out this define
 // to remove support for ghost related spectating events detection.
 #define REQUIRE_NT_GHOSTCAP_PLUGIN
+
+#define FREEFLY_CAMERA_DISTANCE_FROM_TARGET 100.0
 
 //#define DEBUG
 
@@ -127,9 +129,12 @@ public void OnPluginStart()
 public Action CommandListener_SpecNext(int client, const char[] command, int argc)
 {
 	if (_is_spectator[client] && _client_wants_auto_rotate[client]) {
-		float angles[3];
-		GetClientAbsAngles(GetNextClient(GetEntPropEnt(client, Prop_Send, "m_hObserverTarget")), angles);
-		TeleportEntity(client, NULL_VECTOR, angles, NULL_VECTOR);
+		int next_client = GetNextClient(GetEntPropEnt(client, Prop_Send, "m_hObserverTarget"));
+		if (next_client != -1) {
+			float angles[3];
+			GetClientAbsAngles(GetNextClient(GetEntPropEnt(client, Prop_Send, "m_hObserverTarget")), angles);
+			TeleportEntity(client, NULL_VECTOR, angles, NULL_VECTOR);
+		}
 	}
 	return Plugin_Continue;
 }
@@ -421,13 +426,7 @@ int GetNextClient(int client, bool iterate_backwards = false)
 	int target_client = client;
 	int add_num = iterate_backwards ? -1 : 1;
 	
-	if (client <= 0 || client > MaxClients) {
-		LogError("Invalid client index: %d", client);
-	}
-	else if (!IsClientInGame(client)) {
-		LogError("Client is not in game: %d", client);
-	}
-	else {
+	if (client > 0 && client <= MaxClients && IsClientInGame(client)) {
 		for (int iter_client = mod((target_client + add_num), MaxClients);
 			iter_client != client;
 			iter_client = mod((iter_client + add_num), MaxClients))
@@ -456,6 +455,7 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
 		return Plugin_Continue;
 	}
 	
+	float target_pos[3];
 	float final_ang[3];
 	
 	// If player is doing a manual mouse2 spectator change ("spec_prev").
@@ -467,20 +467,27 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
 		}
 		
 		int next_spec_client = GetNextClient(GetEntPropEnt(client, Prop_Send, "m_hObserverTarget"), true);
-		
-		SetEntProp(client, Prop_Send, "m_iObserverMode", OBS_MODE_FOLLOW);
-		SetEntPropEnt(client, Prop_Send, "m_hObserverTarget", next_spec_client);
-		
-		if (_client_wants_auto_rotate[client]) {
+		if (next_spec_client != -1) {
 			GetClientAbsAngles(next_spec_client, final_ang);
-			TeleportEntity(client, NULL_VECTOR, final_ang, NULL_VECTOR);
+			
+			bool was_previously_following = (GetEntProp(client, Prop_Send, "m_iObserverMode") == OBS_MODE_FOLLOW);
+			if (!was_previously_following) {
+				GetFreeflyCameraPosBehindPlayer(next_spec_client, final_ang, target_pos);
+			}
+			
+			SetEntPropEnt(client, Prop_Send, "m_hObserverTarget", next_spec_client);
+			
+			TeleportEntity(client,
+				(was_previously_following ? NULL_VECTOR : target_pos),
+				(_client_wants_auto_rotate[client] ? final_ang : NULL_VECTOR),
+				NULL_VECTOR);
+			
+			_spec_userid_target[client] = 0;
+			
+			// Consume the button(s) so they don't trigger further spectator target switches
+			_prev_consumed_buttons[client] = buttons;
+			buttons &= ~IN_AIM;
 		}
-		
-		_spec_userid_target[client] = 0;
-		
-		// Consume the button(s) so they don't trigger further spectator target switches
-		_prev_consumed_buttons[client] = buttons;
-		buttons &= ~IN_AIM;
 		return Plugin_Continue;
 	}
 	else {
@@ -557,7 +564,6 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
 		}
 		
 		float start_pos[3];
-		float target_pos[3];
 		float final_pos[3];
 		
 		float start_ang[3];
@@ -591,7 +597,6 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
 	
 	if (_is_lerping_specview[client]) {
 		float start_pos[3];
-		float target_pos[3];
 		float final_pos[3];
 		
 		float start_ang[3];
@@ -609,7 +614,8 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
 		LerpAngles(start_ang, target_ang, final_ang);
 		
 		// Observer follow mode distance from spectated player is 100 units (expressed as squared here)
-		bool reached_target_distance = (!(GetVectorDistance(start_pos, target_pos, true) > 10000));
+		bool reached_target_distance =
+			(GetVectorDistance(start_pos, target_pos, true) <= (FREEFLY_CAMERA_DISTANCE_FROM_TARGET * FREEFLY_CAMERA_DISTANCE_FROM_TARGET));
 		
 		TeleportEntity(client, final_pos, (reached_target_distance && _client_wants_auto_rotate[client]) ? NULL_VECTOR : final_ang, NULL_VECTOR);
 		
@@ -708,4 +714,54 @@ int mod(int a, int b)
 {
     int r = a % b;
     return r < 0 ? r + (b < 0 ? -b : b) : r;
+}
+
+void GetFreeflyCameraPosBehindPlayer(int client, const float eye_ang[3], float[3] out_pos)
+{
+	if (!IsClientInGame(client)) {
+		ThrowError("Client is not in game");
+	}
+	
+	GetClientEyePosition(client, out_pos);
+	
+	float sp, sy, sr, cp, cy, cr;
+	GetSinCos(eye_ang[0], sp, cp);
+	GetSinCos(eye_ang[1], sy, cy);
+	GetSinCos(eye_ang[2], sr, cr);
+	
+	float crcy = cr * cy;
+	float crsy = cr * sy;
+	float srcy = sr * cy;
+	float srsy = sr * sy;
+	
+	float matrix[3][3];
+	matrix[0][0] = cp * cy;
+	matrix[1][0] = cp * sy;
+	matrix[2][0] = -sp;
+	
+	matrix[0][1] = sp * srcy - crsy;
+	matrix[1][1] = sp * srsy + crcy;
+	matrix[2][1] = sr * cp;
+	
+	matrix[0][2] = sp * crcy + srsy;
+	matrix[1][2] = sp * crsy - srcy;
+	matrix[2][2] = cr * cp;
+	
+	float offset[3] = {
+		-FREEFLY_CAMERA_DISTANCE_FROM_TARGET,
+		0.0,
+		0.0
+	};
+	
+	out_pos[0] += GetVectorDotProduct(offset, matrix[0]);
+	out_pos[1] += GetVectorDotProduct(offset, matrix[1]);
+	out_pos[2] += GetVectorDotProduct(offset, matrix[2]);
+}
+
+stock void GetSinCos(float value, float& sine, float& cosine)
+{
+#define PI_OVER_180 0.01745329252
+	float a = value * PI_OVER_180;
+	sine = Sine(a);
+	cosine = Cosine(a);
 }
