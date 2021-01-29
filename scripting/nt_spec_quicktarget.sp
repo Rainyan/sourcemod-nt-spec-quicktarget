@@ -17,6 +17,7 @@
 // to remove support for ghost related spectating events detection.
 #define REQUIRE_NT_GHOSTCAP_PLUGIN
 
+// This is the distance from player the spectator camera is at when following them.
 #define FREEFLY_CAMERA_DISTANCE_FROM_TARGET 100.0
 
 //#define DEBUG
