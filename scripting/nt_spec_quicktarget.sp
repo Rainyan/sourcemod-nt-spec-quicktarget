@@ -5,7 +5,7 @@
 
 #include <neotokyo>
 
-#define PLUGIN_VERSION "0.6.5"
+#define PLUGIN_VERSION "0.6.6"
 
 #define NEO_MAX_PLAYERS 32
 
@@ -99,6 +99,11 @@ public void OnPluginStart()
 		SetFailState("Failed to hook event game_round_start");
 	}
 	
+	// Spectator team consumes IN_ATTACK bits when triggering spec_next, so need to set up a command listener, instead of capturing the buttons.
+	if (!AddCommandListener(CommandListener_SpecNext, "spec_next")) {
+		SetFailState("Failed to set command listener for spec_next");
+	}
+	
 	_cookie_AutoSpecGhostSpawn = RegClientCookie("spec_newround_ghost",
 		"NT Spectator Quick Target plugin: Whether to automatically spectate the ghost spawn position on new rounds.",
 		CookieAccess_Public);
@@ -115,6 +120,16 @@ public void OnPluginStart()
 		}
 	}
 	RegConsoleCmd("sm_cookies", Cmd_Cookies);
+}
+
+public Action CommandListener_SpecNext(int client, const char[] command, int argc)
+{
+	if (_is_spectator[client] && _client_wants_auto_rotate[client]) {
+		float angles[3];
+		GetClientAbsAngles(GetNextClient(GetEntPropEnt(client, Prop_Send, "m_hObserverTarget")), angles);
+		TeleportEntity(client, NULL_VECTOR, angles, NULL_VECTOR);
+	}
+	return Plugin_Continue;
 }
 
 public Action Cmd_Cookies(int client, int argc)
@@ -395,6 +410,38 @@ public Action Cmd_FollowGrenade(int client, int argc)
 	return Plugin_Handled;
 }
 
+// Get the next (or previous, if iterate_backwards) valid alive player client index.
+// Returns the inputted client index if no other valid candidates were found.
+int GetNextClient(int client, bool iterate_backwards = false)
+{
+	int target_client = client;
+	int add_num = iterate_backwards ? -1 : 1;
+	
+	if (client <= 0 || client > MaxClients) {
+		LogError("Invalid client index: %d", client);
+	}
+	else if (!IsClientInGame(client)) {
+		LogError("Client is not in game: %d", client);
+	}
+	else {
+		for (int iter_client = mod((target_client + add_num), MaxClients);
+			iter_client != client;
+			iter_client = mod((iter_client + add_num),MaxClients))
+		{
+			if (iter_client == 0 || !IsClientInGame(iter_client) ||
+				GetClientTeam(iter_client) <= TEAM_SPECTATOR || !IsPlayerAlive(iter_client))
+			{
+				continue;
+			}
+			target_client = iter_client;
+			break;
+		}
+	}
+	return target_client;
+}
+
+static int prev_consumed_buttons;
+
 public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3],
 	float angles[3], int& weapon, int& subtype, int& cmdnum, int& tickcount,
 	int& seed, int mouse[2])
@@ -405,6 +452,37 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
 			_last_shooter_userid = GetClientUserId(client);
 		}
 		return Plugin_Continue;
+	}
+	
+	float final_ang[3];
+	
+	// If player is doing a manual mouse2 spectator change ("spec_prev").
+	// Spectator won't emit IN_ATTACK bits for "spec_next",
+	// so using a command listener for that instead of also capturing it here.
+	if (buttons & IN_AIM) {
+		if (prev_consumed_buttons & IN_AIM) {
+			return Plugin_Continue;
+		}
+		
+		int next_spec_client = GetNextClient(GetEntPropEnt(client, Prop_Send, "m_hObserverTarget"), true);
+		
+		SetEntProp(client, Prop_Send, "m_iObserverMode", OBS_MODE_FOLLOW);
+		SetEntPropEnt(client, Prop_Send, "m_hObserverTarget", next_spec_client);
+		
+		if (_client_wants_auto_rotate[client]) {
+			GetClientAbsAngles(next_spec_client, final_ang);
+			TeleportEntity(client, NULL_VECTOR, final_ang, NULL_VECTOR);
+		}
+		
+		_spec_userid_target[client] = 0;
+		
+		// Consume the button(s) so they don't trigger further spectator target switches
+		prev_consumed_buttons = buttons;
+		buttons &= ~IN_AIM;
+		return Plugin_Continue;
+	}
+	else {
+		prev_consumed_buttons = 0;
 	}
 	
 	// We should be doing a fancy camera pan of the new ghost spawn location
@@ -443,7 +521,6 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
 		float start_ang[3];
 		float target_dir[3];
 		float target_ang[3];
-		float final_ang[3];
 		
 		float actual_ghost_pos[3];
 		GetEntPropVector(_last_ghost, Prop_Send, "m_vecOrigin", actual_ghost_pos);
@@ -484,7 +561,6 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
 		float start_ang[3];
 		float target_dir[3];
 		float target_ang[3];
-		float final_ang[3];
 		
 		GetClientEyePosition(client, start_pos);
 		GetEntPropVector(_last_live_grenade, Prop_Send, "m_vecOrigin", target_pos);
@@ -519,7 +595,6 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
 		float start_ang[3];
 		float target_dir[3];
 		float target_ang[3];
-		float final_ang[3];
 		
 		GetClientEyePosition(client, start_pos);
 		GetClientEyePosition(target_client, target_pos);
@@ -566,7 +641,6 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
 		_spec_userid_target[client] = 0;
 		
 		if (_client_wants_auto_rotate[client]) {
-			float final_ang[3];
 			GetClientAbsAngles(target_client, final_ang);
 			TeleportEntity(client, NULL_VECTOR, final_ang, NULL_VECTOR);
 		}
@@ -625,4 +699,11 @@ stock float LerpAngle(const float a, const float b, const float t = 0.0)
 {
 	float dt = Clamp((b - a) - RoundToFloor((b - a) / 360.0) * 360.0, 0.0, 360.0);
 	return Lerp(a, a + (dt > 180 ? dt - 360 : dt), t);
+}
+
+// Needed for a "negative mod" that cycles back to positive range.
+int mod(int a, int b)
+{
+    int r = a % b;
+    return r < 0 ? r + (b < 0 ? -b : b) : r;
 }
