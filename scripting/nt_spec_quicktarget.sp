@@ -426,7 +426,7 @@ int GetNextClient(int client, bool iterate_backwards = false)
 	else {
 		for (int iter_client = mod((target_client + add_num), MaxClients);
 			iter_client != client;
-			iter_client = mod((iter_client + add_num),MaxClients))
+			iter_client = mod((iter_client + add_num), MaxClients))
 		{
 			if (iter_client == 0 || !IsClientInGame(iter_client) ||
 				GetClientTeam(iter_client) <= TEAM_SPECTATOR || !IsPlayerAlive(iter_client))
