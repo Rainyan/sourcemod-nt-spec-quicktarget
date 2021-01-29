@@ -5,7 +5,7 @@
 
 #include <neotokyo>
 
-#define PLUGIN_VERSION "0.6.8"
+#define PLUGIN_VERSION "0.6.9"
 
 #define NEO_MAX_PLAYERS 32
 
@@ -747,11 +747,9 @@ void GetFreeflyCameraPosBehindPlayer(int client, const float camera_ang[3], floa
 	matrix[1][2] = sp * crsy - srcy;
 	matrix[2][2] = cr * cp;
 	
-	float offset[3] = {
-		-FREEFLY_CAMERA_DISTANCE_FROM_TARGET,
-		0.0,
-		0.0
-	};
+	float offset[3];
+	// Move slightly further than FREEFLY_CAMERA_DISTANCE_FROM_TARGET for smoother camera transitions.
+	offset[0] = -FREEFLY_CAMERA_DISTANCE_FROM_TARGET - 0.1;
 	
 	out_camera_pos[0] += GetVectorDotProduct(offset, matrix[0]);
 	out_camera_pos[1] += GetVectorDotProduct(offset, matrix[1]);
