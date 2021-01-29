@@ -758,10 +758,9 @@ void GetFreeflyCameraPosBehindPlayer(int client, const float camera_ang[3], floa
 	out_camera_pos[2] += GetVectorDotProduct(offset, matrix[2]);
 }
 
-stock void GetSinCos(float value, float& sine, float& cosine)
+stock void GetSinCos(const float degrees, float& sine, float& cosine)
 {
-#define PI_OVER_180 0.01745329252
-	float a = value * PI_OVER_180;
-	sine = Sine(a);
-	cosine = Cosine(a);
+	float radians = DegToRad(degrees);
+	sine = Sine(radians);
+	cosine = Cosine(radians);
 }
