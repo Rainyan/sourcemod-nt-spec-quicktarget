@@ -5,7 +5,7 @@
 
 #include <neotokyo>
 
-#define PLUGIN_VERSION "0.6.6"
+#define PLUGIN_VERSION "0.6.7"
 
 #define NEO_MAX_PLAYERS 32
 
@@ -41,6 +41,8 @@ static int _last_live_grenade;
 static int _last_ghost;
 static bool _is_currently_displaying_ghost_location;
 static float _ghost_display_location[3];
+
+static int _prev_consumed_buttons[NEO_MAX_PLAYERS + 1];
 
 ConVar g_hCvar_LerpSpeed = null;
 
@@ -173,6 +175,8 @@ public void OnClientDisconnected(int client)
 	_client_wants_autospec_ghost_spawn[client] = false;
 	_client_wants_no_fade_for_autospec_ghost_spawn[client] = false;
 	_client_wants_auto_rotate[client] = false;
+	
+	_prev_consumed_buttons[client] = 0;
 }
 
 public void OnEntityCreated(int entity, const char[] classname)
@@ -440,8 +444,6 @@ int GetNextClient(int client, bool iterate_backwards = false)
 	return target_client;
 }
 
-static int prev_consumed_buttons;
-
 public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3],
 	float angles[3], int& weapon, int& subtype, int& cmdnum, int& tickcount,
 	int& seed, int mouse[2])
@@ -460,7 +462,7 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
 	// Spectator won't emit IN_ATTACK bits for "spec_next",
 	// so using a command listener for that instead of also capturing it here.
 	if (buttons & IN_AIM) {
-		if (prev_consumed_buttons & IN_AIM) {
+		if (_prev_consumed_buttons[client] & IN_AIM) {
 			return Plugin_Continue;
 		}
 		
@@ -477,12 +479,12 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
 		_spec_userid_target[client] = 0;
 		
 		// Consume the button(s) so they don't trigger further spectator target switches
-		prev_consumed_buttons = buttons;
+		_prev_consumed_buttons[client] = buttons;
 		buttons &= ~IN_AIM;
 		return Plugin_Continue;
 	}
 	else {
-		prev_consumed_buttons = 0;
+		_prev_consumed_buttons[client] = 0;
 	}
 	
 	// We should be doing a fancy camera pan of the new ghost spawn location
