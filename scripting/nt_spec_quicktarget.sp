@@ -69,10 +69,6 @@ public Plugin myinfo = {
 
 public void OnPluginStart()
 {
-#if defined DEBUG
-	RegConsoleCmd("sm_lm", Cmd_LerpMove);
-#endif
-	
 	// This command lists and explains the binds. Make sure to update it if adding new commands.
 	RegConsoleCmd("sm_binds", Cmd_ListBinds, "List of special spectator bindings provided by the NT Spectator Quick Target plugin.");
 	
@@ -339,22 +335,6 @@ sm_spec_last_killer — Target on the last player who got a kill.");
 	ReplyToCommand(client, "\n[SM] Spectator Quick Target bindings have been printed to your console.");
 	return Plugin_Handled;
 }
-
-#if defined DEBUG
-public Action Cmd_LerpMove(int client, int argc)
-{
-	if (GetClientTeam(client) != TEAM_SPECTATOR) {
-		return Plugin_Handled;
-	}
-	
-	for (int i = 1; i <= MaxClients; ++i) {
-		if (IsClientInGame(i) && IsFakeClient(i)) {
-			_spec_userid_target[client] = GetClientUserId(i);
-		}
-	}
-	return Plugin_Handled;
-}
-#endif
 
 public Action Cmd_SpecLastAttacker(int client, int argc)
 {
