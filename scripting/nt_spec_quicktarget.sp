@@ -5,7 +5,7 @@
 
 #include <neotokyo>
 
-#define PLUGIN_VERSION "0.6.10"
+#define PLUGIN_VERSION "0.6.11"
 
 #define NEO_MAX_PLAYERS 32
 
@@ -57,8 +57,7 @@ static bool _client_wants_autospec_ghost_spawn[NEO_MAX_PLAYERS + 1];
 static bool _client_wants_no_fade_for_autospec_ghost_spawn[NEO_MAX_PLAYERS + 1];
 static bool _client_wants_auto_rotate[NEO_MAX_PLAYERS + 1];
 static bool _client_wants_latch_to_closest[NEO_MAX_PLAYERS + 1];
-
-static float _last_pos[NEO_MAX_PLAYERS + 1][3];
+static bool _client_wants_latch_to_fastest[NEO_MAX_PLAYERS + 1];
 
 public Plugin myinfo = {
 	name = "NT Spectator Quick Target",
@@ -91,6 +90,7 @@ public void OnPluginStart()
 	RegConsoleCmd("sm_spec_follow_grenade", Cmd_FollowGrenade, "Follow the path of the last live grenade.");
 	
 	RegConsoleCmd("sm_spec_latch_to_closest", Cmd_LatchToClosest, "Start spectating the player closest to current camera position.");
+	RegConsoleCmd("sm_spec_latch_to_fastest", Cmd_LatchToFastest, "Start spectating the player moving the fastest.");
 	
 	CreateConVar("sm_spec_quicktarget_version", PLUGIN_VERSION, "NT Spectator Quick Target plugin version.", FCVAR_DONTRECORD);
 	
@@ -130,18 +130,6 @@ public void OnPluginStart()
 		}
 	}
 	RegConsoleCmd("sm_cookies", Cmd_Cookies);
-	
-	CreateTimer(0.333, Timer_RecordPositions, _, TIMER_REPEAT);
-}
-
-public Action Timer_RecordPositions(Handle timer)
-{
-	for (int client = 1; client <= MaxClients; ++client) {
-		if (_is_spectator[client] || !IsClientInGame(client)) {
-			continue;
-		}
-		GetClientAbsOrigin(client, _last_pos[client]);
-	}
 }
 
 public Action CommandListener_SpecNext(int client, const char[] command, int argc)
@@ -199,6 +187,7 @@ public void OnClientDisconnected(int client)
 	_client_wants_no_fade_for_autospec_ghost_spawn[client] = false;
 	_client_wants_auto_rotate[client] = false;
 	_client_wants_latch_to_closest[client] = false;
+	_client_wants_latch_to_fastest[client] = false;
 	
 	_prev_consumed_buttons[client] = 0;
 }
@@ -336,6 +325,7 @@ sm_spec_toggle_lerp — Toggle lerping between the spectating events.\n\
 sm_spec_lerp_speed — Server cvar for controlling the lerp speed (sm_cvar ...).\n\
 \n\
 sm_spec_latch_to_closest — Spectate the player closest to camera position.\n\
+sm_spec_latch_to_fastest — Spectate the fastest moving player.\n\
 sm_spec_follow_grenade — Follow the last live HE grenade.\n\
 \n\
 sm_spec_last_hurt — Target on the last player who was damaged.\n\
@@ -446,6 +436,15 @@ public Action Cmd_LatchToClosest(int client, int argc)
 		return Plugin_Handled;
 	}
 	_client_wants_latch_to_closest[client] = true;
+	return Plugin_Handled;
+}
+
+public Action Cmd_LatchToFastest(int client, int argc)
+{
+	if (GetClientTeam(client) != TEAM_SPECTATOR) {
+		return Plugin_Handled;
+	}
+	_client_wants_latch_to_fastest[client] = true;
 	return Plugin_Handled;
 }
 
@@ -576,50 +575,79 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
 		return Plugin_Continue;
 	}
 	
-	if (_client_wants_latch_to_closest[client]) {
-		GetClientEyePosition(client, start_pos);
-		
+	if (_client_wants_latch_to_closest[client] || _client_wants_latch_to_fastest[client]) {
 		int obsmode = GetEntProp(client, Prop_Send, "m_iObserverMode");
 		int current_spectated_target = GetEntPropEnt(client, Prop_Send, "m_hObserverTarget");
 		
-		int closest_client = -1;
-		float closest_distance;
+		int best_client = -1;
+		float best_client_value;
 		
-		for (int i = 1; i <= MaxClients; ++i) {
-			if (!IsClientInGame(i) || i == client) {
-				continue;
-			}
-			// Only ignore current target if already in OBS_MODE_FOLLOW.
-			if (obsmode == OBS_MODE_FOLLOW && i == current_spectated_target) {
-				continue;
-			}
-			if (!IsPlayerAlive(i) || GetClientTeam(i) <= TEAM_SPECTATOR) {
-				continue;
-			}
+		if (_client_wants_latch_to_closest[client]) {
+			GetClientEyePosition(client, start_pos);
 			
-			GetClientEyePosition(i, target_pos);
+			for (int i = 1; i <= MaxClients; ++i) {
+				if (!IsClientInGame(i) || i == client) {
+					continue;
+				}
+				// Only ignore current target if already in OBS_MODE_FOLLOW.
+				if (obsmode == OBS_MODE_FOLLOW && i == current_spectated_target) {
+					continue;
+				}
+				if (!IsPlayerAlive(i) || GetClientTeam(i) <= TEAM_SPECTATOR) {
+					continue;
+				}
+				
+				GetClientEyePosition(i, target_pos);
+				
+				float distance = GetVectorDistance(start_pos, target_pos, true);
+				if (best_client == -1 || distance < best_client_value) {
+					best_client = i;
+					best_client_value = distance;
+				}
+			}
+		}
+		else { // _client_wants_latch_to_fastest[client]
+			float velocity[3];
 			
-			float distance = GetVectorDistance(start_pos, target_pos, true);
-			if (closest_client == -1 || distance < closest_distance) {
-				closest_client = i;
-				closest_distance = distance;
+			for (int i = 1; i <= MaxClients; ++i) {
+				if (!IsClientInGame(i) || i == client) {
+					continue;
+				}
+				// Only ignore current target if already in OBS_MODE_FOLLOW.
+				if (obsmode == OBS_MODE_FOLLOW && i == current_spectated_target) {
+					continue;
+				}
+				if (!IsPlayerAlive(i) || GetClientTeam(i) <= TEAM_SPECTATOR) {
+					continue;
+				}
+				
+				velocity[0] = GetEntPropFloat(i, Prop_Send, "m_vecVelocity[0]");
+				velocity[1] = GetEntPropFloat(i, Prop_Send, "m_vecVelocity[1]");
+				velocity[2] = GetEntPropFloat(i, Prop_Send, "m_vecVelocity[2]");
+				
+				float vel_length = GetVectorLength(velocity, true);
+				if (best_client == -1 || vel_length > best_client_value) {
+					best_client = i;
+					best_client_value = vel_length;
+				}
 			}
 		}
 		
-		if (closest_client == -1) {
-			closest_client = (current_spectated_target == -1 ? GetNextClient(current_spectated_target) : current_spectated_target);
+		if (best_client == -1) {
+			best_client = (current_spectated_target == -1 ? GetNextClient(current_spectated_target) : current_spectated_target);
 		}
 		
 		if (obsmode != OBS_MODE_FOLLOW) {
 			SetEntProp(client, Prop_Send, "m_iObserverMode", OBS_MODE_FOLLOW);
 		}
-		SetEntPropEnt(client, Prop_Send, "m_hObserverTarget", closest_client);
+		SetEntPropEnt(client, Prop_Send, "m_hObserverTarget", best_client);
 		
 		_spec_userid_target[client] = 0;
 		_client_wants_latch_to_closest[client] = false;
+		_client_wants_latch_to_fastest[client] = false;
 		
 		if (_client_wants_auto_rotate[client]) {
-			GetClientAbsAngles(closest_client, final_ang);
+			GetClientAbsAngles(best_client, final_ang);
 			TeleportEntity(client, NULL_VECTOR, final_ang, NULL_VECTOR);
 		}
 		
