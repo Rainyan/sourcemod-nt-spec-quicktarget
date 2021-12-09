@@ -742,6 +742,10 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
 
 		GetClientEyePosition(client, start_pos);
 
+		if (IsNullVector(target_pos)) {
+			_is_following_grenade[client] = false;
+			return Plugin_Continue;
+		}
 		VectorLerp(start_pos, target_pos, final_pos, GetGameFrameTime());
 
 		GetClientEyeAngles(client, start_ang);
