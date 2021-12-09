@@ -7,7 +7,7 @@
 
 #include <neotokyo>
 
-#define PLUGIN_VERSION "0.7.0"
+#define PLUGIN_VERSION "0.7.1"
 
 #define NEO_MAX_PLAYERS 32
 
