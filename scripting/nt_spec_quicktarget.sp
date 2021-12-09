@@ -7,7 +7,7 @@
 
 #include <neotokyo>
 
-#define PLUGIN_VERSION "0.7.1"
+#define PLUGIN_VERSION "0.7.2"
 
 #define NEO_MAX_PLAYERS 32
 
@@ -206,6 +206,8 @@ public void OnClientDisconnected(int client)
 	_spec_userid_target[client] = 0;
 	_is_lerping_specview[client] = false;
 	_is_spectator[client] = false;
+	_is_following_grenade[client] = false;
+	_follow_explosive[client] = 0;
 
 	_client_wants_autospec_ghost_spawn[client] = false;
 	_client_wants_no_fade_for_autospec_ghost_spawn[client] = false;
