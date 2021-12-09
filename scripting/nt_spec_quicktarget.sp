@@ -1,3 +1,5 @@
+#pragma semicolon 1
+
 #include <sourcemod>
 #include <sdkhooks>
 #include <sdktools>
@@ -5,12 +7,32 @@
 
 #include <neotokyo>
 
-#define PLUGIN_VERSION "0.6.11"
+#define PLUGIN_VERSION "0.7.0"
 
 #define NEO_MAX_PLAYERS 32
 
 #define OBS_MODE_FOLLOW 4
 #define OBS_MODE_FREEFLY 5
+
+// Meta TODO: prepare a nice .MD doc for observers on recommended binds/cfgs,
+// with images etc.
+
+
+// TODO: add "underdog" bind for clutcher speccing,
+// or if there's no clutch active, get the player with least health.
+
+// TODO: add speccing for enemy closest to ghost carrier,
+// or player closest to ghost if no one is carrying it
+
+// TODO: add speccing for player closest to a live nade
+
+// TODO: add speccing for detpacks (merge with nades follow when speccing an equipped-det-remote-holder)
+
+// TODO: auto speccing mode
+
+// TODO: after ghost spawn mode, add option to transition into loadout mode,
+// where camera jumps to class changes, first occurrences of a particular weapon
+// on the field, weapon donations, etc.
 
 // This plugin relies on the nt_ghostcap plugin for detecting ghost events.
 // If for whatever reason you don't want to run that plugin, comment out this define
@@ -27,6 +49,7 @@ static stock float vec3_origin[3];
 static int _spec_userid_target[NEO_MAX_PLAYERS + 1];
 static bool _is_lerping_specview[NEO_MAX_PLAYERS + 1];
 static bool _is_following_grenade[NEO_MAX_PLAYERS + 1];
+static int _follow_explosive[NEO_MAX_PLAYERS + 1];
 // Doing this check ahead of time to avoid having to do it for every frame.
 static bool _is_spectator[NEO_MAX_PLAYERS + 1];
 
@@ -90,6 +113,7 @@ public void OnPluginStart()
 	
 	CreateConVar("sm_spec_quicktarget_version", PLUGIN_VERSION, "NT Spectator Quick Target plugin version.", FCVAR_DONTRECORD);
 	
+	// TODO: convert into cookie
 	g_hCvar_LerpSpeed = CreateConVar("sm_spec_lerp_speed", "2.0", "How fast to lerp the spectating event switch.", _, true, 0.001, true, 10.0);
 	
 	if (!HookEventEx("player_death", Event_PlayerDeath, EventHookMode_Post)) {
@@ -123,6 +147,10 @@ public void OnPluginStart()
 	for (int client = 1; client <= MaxClients; ++client) {
 		if (AreClientCookiesCached(client)) {
 			OnClientCookiesCached(client);
+		}
+		if (IsClientInGame(client))
+		{
+			_is_spectator[client] = (GetClientTeam(client) == TEAM_SPECTATOR);
 		}
 	}
 	RegConsoleCmd("sm_cookies", Cmd_Cookies);
@@ -191,11 +219,26 @@ public void OnClientDisconnected(int client)
 public void OnEntityCreated(int entity, const char[] classname)
 {
 	if (StrEqual(classname, "grenade_projectile")) {
-		_last_live_grenade = EntIndexToEntRef(entity);
+		_last_live_grenade = entity;
 	}
 	else if (StrEqual(classname, "weapon_ghost")) {
 		_last_ghost = EntIndexToEntRef(entity);
 	}
+}
+
+public void OnEntityDestroyed(int entity)
+{
+	// Ent ref didn't seem to work well with the projectiles, so manually handling ent index lifetime.
+	if (_last_live_grenade == entity)
+	{
+		_last_live_grenade = 0;
+	}
+}
+
+public void OnMapEnd()
+{
+	// Ent ref didn't seem to work well with the projectiles, so manually handling ent index lifetime.
+	_last_live_grenade = 0;
 }
 
 public void Event_PlayerDeath(Event event, const char[] name,
@@ -403,10 +446,9 @@ public Action Cmd_SpecLastEvent(int client, int argc)
 
 public Action Cmd_FollowGrenade(int client, int argc)
 {
-	if (GetClientTeam(client) != TEAM_SPECTATOR) {
-		return Plugin_Handled;
+	if (GetClientTeam(client) == TEAM_SPECTATOR) {
+		_is_following_grenade[client] = true;
 	}
-	_is_following_grenade[client] = !_is_following_grenade[client];
 	return Plugin_Handled;
 }
 
@@ -519,13 +561,13 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
 		
 		GetClientEyePosition(client, start_pos);
 		
-		if (VectorsEqual(_ghost_display_location, vec3_origin)) {
+		if (IsNullVector(_ghost_display_location)) {
 			GetEntPropVector(_last_ghost, Prop_Send, "m_vecOrigin", _ghost_display_location);
 			_ghost_display_location[0] += GetRandomFloat(-128.0, 128.0);
 			_ghost_display_location[1] += GetRandomFloat(-128.0, 128.0);
 			_ghost_display_location[2] += 64.0;
 #if defined DEBUG
-			if (VectorsEqual(_ghost_display_location, vec3_origin)) {
+			if (IsNullVector(_ghost_display_location)) {
 				PrintToServer("!! VectorsEqual: _ghost_display_location, vec3_origin");
 				return Plugin_Continue;
 			}
@@ -626,9 +668,90 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
 		_client_wants_latch_to_closest[client] = false;
 		_client_wants_latch_to_fastest[client] = false;
 		
-		if (_client_wants_auto_rotate[client]) {
+		// Only auto rotate if user wants it (and there also actually was a new target client whose angles to rotate into)
+		if (_client_wants_auto_rotate[client] && best_client != current_spectated_target) {
 			GetClientAbsAngles(best_client, final_ang);
 			TeleportEntity(client, NULL_VECTOR, final_ang, NULL_VECTOR);
+		}
+		
+		return Plugin_Continue;
+	}
+	
+	if (_is_following_grenade[client]) {
+		if (buttons != 0) {
+			_is_following_grenade[client] = false;
+			return Plugin_Continue;
+		}
+		
+		if (_follow_explosive[client] == 0) {
+			if (_last_live_grenade == 0) {
+				_is_following_grenade[client] = false;
+				return Plugin_Continue;
+			}
+			if (!IsValidEntity(_last_live_grenade)) {
+				_last_live_grenade = 0;
+				_is_following_grenade[client] = false;
+				return Plugin_Continue;
+			}
+			_follow_explosive[client] = _last_live_grenade;
+			
+			GetClientEyePosition(client, start_pos);
+			
+			// Have to check because we aren't using an ent ref
+			if (!HasEntProp(_last_live_grenade, Prop_Send, "m_vecOrigin")) {
+				_last_live_grenade = 0;
+				_is_following_grenade[client] = false;
+				return Plugin_Continue;
+			}
+			GetEntPropVector(_last_live_grenade, Prop_Send, "m_vecOrigin", target_pos);
+			
+			if (IsNullVector(target_pos)) {
+				_last_live_grenade = 0;
+				_is_following_grenade[client] = false;
+				return Plugin_Continue;
+			}
+			
+			float sqdist = GetVectorDistance(start_pos, target_pos, true);
+			// If the nade is too far, snap us closer to it for a smoother spec experience
+			if (sqdist > Pow(512.0, 2.0)) {
+				TeleportEntity(client, target_pos, NULL_VECTOR, NULL_VECTOR);
+			}
+		}
+		
+		if (_follow_explosive[client] == 0 || !IsValidEntity(_follow_explosive[client])) {
+			_is_following_grenade[client] = false;
+			return Plugin_Continue;
+		}
+		
+		// Have to check because we aren't using an ent ref
+		if (!HasEntProp(_follow_explosive[client], Prop_Send, "m_vecOrigin")) {
+			_last_live_grenade = 0;
+			_is_following_grenade[client] = false;
+			return Plugin_Continue;
+		}
+		GetEntPropVector(_follow_explosive[client], Prop_Send, "m_vecOrigin", target_pos);
+		
+		if (GetEntProp(client, Prop_Send, "m_iObserverMode") != OBS_MODE_FREEFLY) {
+			SetEntProp(client, Prop_Send, "m_iObserverMode", OBS_MODE_FREEFLY);
+		}
+		
+		float final_pos[3];
+		float start_ang[3];
+		float target_dir[3];
+		float target_ang[3];
+		
+		GetClientEyePosition(client, start_pos);
+		
+		VectorLerp(start_pos, target_pos, final_pos, GetGameFrameTime());
+		
+		GetClientEyeAngles(client, start_ang);
+		SubtractVectors(target_pos, start_pos, target_dir);
+		NormalizeVector(target_dir, target_dir);
+		GetVectorAngles(target_dir, target_ang);
+		LerpAngles(start_ang, target_ang, final_ang);
+		
+		if (GetVectorDistance(final_pos, target_pos, true) > Pow(FREEFLY_CAMERA_DISTANCE_FROM_TARGET + 0.1, 2.0)) {
+			TeleportEntity(client, final_pos, final_ang, NULL_VECTOR);
 		}
 		
 		return Plugin_Continue;
@@ -643,33 +766,6 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
 	if (buttons != 0) {
 		_spec_userid_target[client] = 0;
 		_is_currently_displaying_ghost_location = false;
-		return Plugin_Continue;
-	}
-	
-	if (_is_following_grenade[client]) {
-		if (_last_live_grenade == 0 || !IsValidEntity(_last_live_grenade)) {
-			_is_following_grenade[client] = false;
-			return Plugin_Continue;
-		}
-		
-		float final_pos[3];
-		
-		float start_ang[3];
-		float target_dir[3];
-		float target_ang[3];
-		
-		GetClientEyePosition(client, start_pos);
-		GetEntPropVector(_last_live_grenade, Prop_Send, "m_vecOrigin", target_pos);
-		VectorLerp(start_pos, target_pos, final_pos);
-		
-		GetClientEyeAngles(client, start_ang);
-		SubtractVectors(target_pos, start_pos, target_dir);
-		NormalizeVector(target_dir, target_dir);
-		GetVectorAngles(target_dir, target_ang);
-		LerpAngles(start_ang, target_ang, final_ang);
-		
-		TeleportEntity(client, final_pos, final_ang, NULL_VECTOR);
-		
 		return Plugin_Continue;
 	}
 	
@@ -803,14 +899,8 @@ int mod(int a, int b)
     return r < 0 ? r + (b < 0 ? -b : b) : r;
 }
 
-void GetFreeflyCameraPosBehindPlayer(int client, const float camera_ang[3], float[3] out_camera_pos)
+void GetFreeflyCameraPosBehindPlayer_Vec(const float camera_ang[3], float[3] out_camera_pos)
 {
-	if (!IsClientInGame(client)) {
-		ThrowError("Client is not in game");
-	}
-	
-	GetClientEyePosition(client, out_camera_pos);
-	
 	float sp, sy, sr, cp, cy, cr;
 	GetSinCos(camera_ang[0], sp, cp);
 	GetSinCos(camera_ang[1], sy, cy);
@@ -841,6 +931,16 @@ void GetFreeflyCameraPosBehindPlayer(int client, const float camera_ang[3], floa
 	out_camera_pos[0] += GetVectorDotProduct(offset, matrix[0]);
 	out_camera_pos[1] += GetVectorDotProduct(offset, matrix[1]);
 	out_camera_pos[2] += GetVectorDotProduct(offset, matrix[2]);
+}
+
+void GetFreeflyCameraPosBehindPlayer(int client, const float camera_ang[3], float[3] out_camera_pos)
+{
+	if (!IsClientInGame(client)) {
+		ThrowError("Client is not in game");
+	}
+	
+	GetClientEyePosition(client, out_camera_pos);
+	GetFreeflyCameraPosBehindPlayer_Vec(camera_ang, out_camera_pos);
 }
 
 stock void GetSinCos(const float degrees, float& sine, float& cosine)
