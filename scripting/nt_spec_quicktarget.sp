@@ -7,7 +7,7 @@
 
 #include <neotokyo>
 
-#define PLUGIN_VERSION "0.7.2"
+#define PLUGIN_VERSION "0.7.3"
 
 #define NEO_MAX_PLAYERS 32
 
@@ -23,8 +23,6 @@
 #define FREEFLY_CAMERA_DISTANCE_FROM_TARGET 100.0
 
 //#define DEBUG
-
-static stock float vec3_origin[3];
 
 static int _spec_userid_target[NEO_MAX_PLAYERS + 1];
 static bool _is_lerping_specview[NEO_MAX_PLAYERS + 1];
@@ -273,7 +271,7 @@ public void Event_RoundStart(Event event, const char[] name,
 {
 	if (_last_ghost != 0) {
 		_is_currently_displaying_ghost_location = true;
-		_ghost_display_location = vec3_origin;
+		_ghost_display_location = NULL_VECTOR;
 
 		if (g_hTimer_FinishDisplayGhostSpawnLocation != INVALID_HANDLE) {
 			KillTimer(g_hTimer_FinishDisplayGhostSpawnLocation);
@@ -323,7 +321,7 @@ void FadeSpecs()
 public Action Timer_FinishDisplayGhostSpawnLocation(Handle timer)
 {
 	_is_currently_displaying_ghost_location = false;
-	_ghost_display_location = vec3_origin;
+	_ghost_display_location = NULL_VECTOR;
 
 	g_hTimer_FinishDisplayGhostSpawnLocation = INVALID_HANDLE;
 	return Plugin_Stop;
@@ -550,7 +548,7 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
 			_ghost_display_location[2] += 64.0;
 #if defined DEBUG
 			if (IsNullVector(_ghost_display_location)) {
-				PrintToServer("!! VectorsEqual: _ghost_display_location, vec3_origin");
+				PrintToServer("!! VectorsEqual: _ghost_display_location, NULL_VECTOR");
 				return Plugin_Continue;
 			}
 #endif
