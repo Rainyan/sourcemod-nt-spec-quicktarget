@@ -14,26 +14,6 @@
 #define OBS_MODE_FOLLOW 4
 #define OBS_MODE_FREEFLY 5
 
-// Meta TODO: prepare a nice .MD doc for observers on recommended binds/cfgs,
-// with images etc.
-
-
-// TODO: add "underdog" bind for clutcher speccing,
-// or if there's no clutch active, get the player with least health.
-
-// TODO: add speccing for enemy closest to ghost carrier,
-// or player closest to ghost if no one is carrying it
-
-// TODO: add speccing for player closest to a live nade
-
-// TODO: add speccing for detpacks (merge with nades follow when speccing an equipped-det-remote-holder)
-
-// TODO: auto speccing mode
-
-// TODO: after ghost spawn mode, add option to transition into loadout mode,
-// where camera jumps to class changes, first occurrences of a particular weapon
-// on the field, weapon donations, etc.
-
 // This plugin relies on the nt_ghostcap plugin for detecting ghost events.
 // If for whatever reason you don't want to run that plugin, comment out this define
 // to remove support for ghost related spectating events detection.
