@@ -2,7 +2,7 @@
 SourceMod plugin for Neotokyo. Binds for quickly spectating where the action is.
 
 # Compile requirements
-* SourceMod 1.7 or newer
+* SourceMod 1.10 or newer
 * [SourceMod Neotokyo include](https://github.com/softashell/sourcemod-nt-include)
 
 # Server requirements
