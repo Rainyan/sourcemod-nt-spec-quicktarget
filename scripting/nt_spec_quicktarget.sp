@@ -7,7 +7,9 @@
 
 #include <neotokyo>
 
-#define PLUGIN_VERSION "0.7.5"
+#include "sp_shims.inc"
+
+#define PLUGIN_VERSION "0.7.6"
 
 #define NEO_MAX_PLAYERS 32
 
