@@ -7,7 +7,7 @@
 
 #include <neotokyo>
 
-#define PLUGIN_VERSION "0.7.4"
+#define PLUGIN_VERSION "0.7.5"
 
 #define NEO_MAX_PLAYERS 32
 
@@ -782,9 +782,12 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
 
         // Observer follow mode distance from spectated player is 100 units (expressed as squared here)
         bool reached_target_distance =
-            (GetVectorDistance(start_pos, target_pos, true) <= (FREEFLY_CAMERA_DISTANCE_FROM_TARGET * FREEFLY_CAMERA_DISTANCE_FROM_TARGET));
+            (GetVectorDistance(start_pos, target_pos, true) <=
+            (FREEFLY_CAMERA_DISTANCE_FROM_TARGET * FREEFLY_CAMERA_DISTANCE_FROM_TARGET));
 
-        TeleportEntity(client, final_pos, (reached_target_distance && _client_wants_auto_rotate[client]) ? NULL_VECTOR : final_ang, NULL_VECTOR);
+        TeleportEntity(client, final_pos,
+            (reached_target_distance && _client_wants_auto_rotate[client])
+            ? NULL_VECTOR : final_ang, NULL_VECTOR);
 
         if (!reached_target_distance) {
             // Make sure we're free flying for the smooth transition
