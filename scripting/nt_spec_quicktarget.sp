@@ -9,7 +9,7 @@
 
 #include "sp_shims.inc"
 
-#define PLUGIN_VERSION "0.7.8"
+#define PLUGIN_VERSION "0.7.9"
 
 #define NEO_MAX_PLAYERS 32
 
@@ -532,7 +532,7 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
     // We should be doing a fancy camera pan of the new ghost spawn location
     if (_client_wants_autospec_ghost_spawn[client] && _is_currently_displaying_ghost_location) {
         if (buttons != 0 || mouse[0] != 0 || mouse[1] != 0) {
-            _is_currently_displaying_ghost_location = false;
+            _client_wants_autospec_ghost_spawn[client] = false;
             return Plugin_Continue;
         }
 
@@ -751,7 +751,6 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
     // Spectator is overriding the transition with their input
     if (buttons != 0) {
         _spec_userid_target[client] = 0;
-        _is_currently_displaying_ghost_location = false;
         return Plugin_Continue;
     }
 
