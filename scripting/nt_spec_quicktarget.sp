@@ -9,7 +9,7 @@
 
 #include "sp_shims.inc"
 
-#define PLUGIN_VERSION "0.7.7"
+#define PLUGIN_VERSION "0.7.8"
 
 #define NEO_MAX_PLAYERS 32
 
@@ -518,8 +518,8 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
             _spec_userid_target[client] = 0;
 
             // Consume the button(s) so they don't trigger further spectator target switches
-            _prev_consumed_buttons[client] = buttons;
             buttons &= ~IN_AIM;
+            _prev_consumed_buttons[client] |= IN_AIM;
         }
         return Plugin_Continue;
     }
