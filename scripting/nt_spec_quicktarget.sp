@@ -9,7 +9,7 @@
 
 #include "sp_shims.inc"
 
-#define PLUGIN_VERSION "0.7.9"
+#define PLUGIN_VERSION "0.7.10"
 
 #define NEO_MAX_PLAYERS 32
 
@@ -541,8 +541,6 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
             return Plugin_Continue;
         }
 
-        GetClientEyePosition(client, start_pos);
-
         if (VectorsEqual(_ghost_display_location, NULL_VECTOR)) {
             GetEntPropVector(_last_ghost, Prop_Send, "m_vecOrigin", _ghost_display_location);
             _ghost_display_location[0] += GetRandomFloat(-128.0, 128.0);
@@ -564,14 +562,14 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
         float start_ang[3];
         float target_dir[3];
         float target_ang[3];
-
         float actual_ghost_pos[3];
-        GetEntPropVector(_last_ghost, Prop_Send, "m_vecOrigin", actual_ghost_pos);
 
-        GetClientEyeAngles(client, start_ang);
+        GetEntPropVector(_last_ghost, Prop_Send, "m_vecOrigin", actual_ghost_pos);
+        GetClientEyePosition(client, start_pos);
         SubtractVectors(actual_ghost_pos, start_pos, target_dir);
         NormalizeVector(target_dir, target_dir);
         GetVectorAngles(target_dir, target_ang);
+        GetClientEyeAngles(client, start_ang);
         LerpAngles(start_ang, target_ang, final_ang);
 
         TeleportEntity(client, _ghost_display_location, final_ang, NULL_VECTOR);
@@ -666,25 +664,17 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
         }
 
         if (_follow_explosive[client] == 0) {
-            if (_last_live_grenade == 0) {
+            if (_last_live_grenade == 0 || !IsValidEntity(_last_live_grenade)) {
                 _is_following_grenade[client] = false;
                 return Plugin_Continue;
             }
-            if (!IsValidEntity(_last_live_grenade)) {
-                _last_live_grenade = 0;
-                _is_following_grenade[client] = false;
-                return Plugin_Continue;
-            }
-            _follow_explosive[client] = _last_live_grenade;
-
-            GetClientEyePosition(client, start_pos);
-
             // Have to check because we aren't using an ent ref
             if (!HasEntProp(_last_live_grenade, Prop_Send, "m_vecOrigin")) {
                 _last_live_grenade = 0;
                 _is_following_grenade[client] = false;
                 return Plugin_Continue;
             }
+            _follow_explosive[client] = _last_live_grenade;
             GetEntPropVector(_last_live_grenade, Prop_Send, "m_vecOrigin", target_pos);
 
             if (VectorsEqual(target_pos, NULL_VECTOR)) {
@@ -693,6 +683,7 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
                 return Plugin_Continue;
             }
 
+            GetClientEyePosition(client, start_pos);
             float sqdist = GetVectorDistance(start_pos, target_pos, true);
             // If the nade is too far, snap us closer to it for a smoother spec experience
             if (sqdist > Pow(512.0, 2.0)) {
@@ -717,17 +708,17 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
             SetEntProp(client, Prop_Send, "m_iObserverMode", OBS_MODE_FREEFLY);
         }
 
+        if (VectorsEqual(target_pos, NULL_VECTOR)) {
+            _is_following_grenade[client] = false;
+            return Plugin_Continue;
+        }
+
         float final_pos[3];
         float start_ang[3];
         float target_dir[3];
         float target_ang[3];
 
         GetClientEyePosition(client, start_pos);
-
-        if (VectorsEqual(target_pos, NULL_VECTOR)) {
-            _is_following_grenade[client] = false;
-            return Plugin_Continue;
-        }
         VectorLerp(start_pos, target_pos, final_pos, GetGameFrameTime());
 
         GetClientEyeAngles(client, start_ang);
