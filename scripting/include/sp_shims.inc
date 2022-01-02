@@ -8,19 +8,6 @@
 // Compatibility shims for SM backwards compatibility.
 
 #if SOURCEMOD_V_MAJOR <= 1 && SOURCEMOD_V_MINOR <= 8
-/**
- * Check if the given vector is equal to the NULL_VECTOR.
- *
- * @param v       The vector to test.
- * @return        True if equal to NULL_VECTOR, false otherwise.
- */
-stock bool IsNullVector(const float v[3])
-{
-    return v[0] == 0.0 && v[1] == 0.0 && v[2] == 0.0;
-}
-#endif
-
-#if SOURCEMOD_V_MAJOR <= 1 && SOURCEMOD_V_MINOR <= 8
 #if !defined(SHIM_EXCLUDE_ONGAMEFRAME)
 static float _last_time_OnGameFrame;
 static float _delta_time_OnGameFrame;

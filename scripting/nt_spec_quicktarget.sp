@@ -9,7 +9,7 @@
 
 #include "sp_shims.inc"
 
-#define PLUGIN_VERSION "0.7.6"
+#define PLUGIN_VERSION "0.7.7"
 
 #define NEO_MAX_PLAYERS 32
 
@@ -543,13 +543,13 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
 
         GetClientEyePosition(client, start_pos);
 
-        if (IsNullVector(_ghost_display_location)) {
+        if (VectorsEqual(_ghost_display_location, NULL_VECTOR)) {
             GetEntPropVector(_last_ghost, Prop_Send, "m_vecOrigin", _ghost_display_location);
             _ghost_display_location[0] += GetRandomFloat(-128.0, 128.0);
             _ghost_display_location[1] += GetRandomFloat(-128.0, 128.0);
             _ghost_display_location[2] += 64.0;
 #if defined DEBUG
-            if (IsNullVector(_ghost_display_location)) {
+            if (VectorsEqual(_ghost_display_location, NULL_VECTOR)) {
                 PrintToServer("!! VectorsEqual: _ghost_display_location, NULL_VECTOR");
                 return Plugin_Continue;
             }
@@ -687,7 +687,7 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
             }
             GetEntPropVector(_last_live_grenade, Prop_Send, "m_vecOrigin", target_pos);
 
-            if (IsNullVector(target_pos)) {
+            if (VectorsEqual(target_pos, NULL_VECTOR)) {
                 _last_live_grenade = 0;
                 _is_following_grenade[client] = false;
                 return Plugin_Continue;
@@ -724,7 +724,7 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
 
         GetClientEyePosition(client, start_pos);
 
-        if (IsNullVector(target_pos)) {
+        if (VectorsEqual(target_pos, NULL_VECTOR)) {
             _is_following_grenade[client] = false;
             return Plugin_Continue;
         }
