@@ -9,7 +9,7 @@
 
 #include "sp_shims.inc"
 
-#define PLUGIN_VERSION "0.7.13"
+#define PLUGIN_VERSION "0.7.14"
 
 #define NEO_MAX_PLAYERS 32
 
@@ -281,6 +281,13 @@ static Handle g_hTimer_FinishDisplayGhostSpawnLocation = INVALID_HANDLE;
 public void Event_RoundStart(Event event, const char[] name,
     bool dontBroadcast)
 {
+    _last_live_grenade = 0;
+    for (int i = 1; i <= MaxClients; ++i)
+    {
+        _is_following_grenade[i] = false;
+        _follow_explosive[i] = 0;
+    }
+
     if (_last_ghost != 0) {
         _is_currently_displaying_ghost_location = true;
         _ghost_display_location = NULL_VECTOR;
