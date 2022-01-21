@@ -9,7 +9,7 @@
 
 #include "sp_shims.inc"
 
-#define PLUGIN_VERSION "0.7.11"
+#define PLUGIN_VERSION "0.7.12"
 
 #define NEO_MAX_PLAYERS 32
 
@@ -145,6 +145,7 @@ public Action CommandListener_SpecNext(int client, const char[] command, int arg
             GetClientAbsAngles(GetNextClient(GetEntPropEnt(client, Prop_Send, "m_hObserverTarget")), angles);
             TeleportEntity(client, NULL_VECTOR, angles, NULL_VECTOR);
         }
+        _is_following_grenade[client] = false;
     }
     return Plugin_Continue;
 }
@@ -215,11 +216,12 @@ public void OnEntityDestroyed(int entity)
     {
         _last_live_grenade = 0;
     }
-    for (int i = 0; i < sizeof(_follow_explosive); ++i)
+    for (int i = 0; i < NEO_MAX_PLAYERS; ++i)
     {
         if (_follow_explosive[i] == entity)
         {
             _follow_explosive[i] = 0;
+            _is_following_grenade[i] = false;
         }
     }
 }
@@ -259,6 +261,7 @@ public void Event_PlayerTeam(Event event, const char[] name,
 
     if (this_client != 0) {
         _spec_userid_target[this_client] = 0;
+        _is_following_grenade[this_client] = false;
         _is_spectator[this_client] = (event.GetInt("team") == TEAM_SPECTATOR);
 
         // Cancel special spectate mode for anyone who was actively spectating this team-changing client.
@@ -502,6 +505,8 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
     // Spectator won't emit IN_ATTACK bits for "spec_next",
     // so using a command listener for that instead of also capturing it here.
     if (buttons & IN_AIM) {
+        _is_following_grenade[client] = false;
+
         if (_prev_consumed_buttons[client] & IN_AIM) {
             return Plugin_Continue;
         }
