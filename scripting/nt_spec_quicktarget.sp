@@ -9,7 +9,7 @@
 
 #include "sp_shims.inc"
 
-#define PLUGIN_VERSION "0.7.10"
+#define PLUGIN_VERSION "0.7.11"
 
 #define NEO_MAX_PLAYERS 32
 
@@ -214,6 +214,13 @@ public void OnEntityDestroyed(int entity)
     if (_last_live_grenade == entity)
     {
         _last_live_grenade = 0;
+    }
+    for (int i = 0; i < sizeof(_follow_explosive); ++i)
+    {
+        if (_follow_explosive[i] == entity)
+        {
+            _follow_explosive[i] = 0;
+        }
     }
 }
 
