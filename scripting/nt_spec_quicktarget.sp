@@ -9,7 +9,7 @@
 
 #include "sp_shims.inc"
 
-#define PLUGIN_VERSION "0.8.0"
+#define PLUGIN_VERSION "0.8.1"
 
 #define NEO_MAX_PLAYERS 32
 
@@ -145,25 +145,7 @@ public Action CommandListener_SpecNext(int client, const char[] command, int arg
         int next_client = GetNextClient(GetEntPropEnt(client, Prop_Send, "m_hObserverTarget"));
         if (next_client != -1)
         {
-            float pos[3];
-            float ang[3];
-            GetClientAbsAngles(next_client, ang);
-
-            bool was_previously_following = (GetEntProp(client, Prop_Send, "m_iObserverMode") == OBS_MODE_FOLLOW);
-
-            if (!was_previously_following)
-            {
-                GetFreeflyCameraPosBehindPlayer(next_client, ang, pos);
-            }
-
-            SetEntPropEnt(client, Prop_Send, "m_hObserverTarget", next_client);
-
-            TeleportEntity(client,
-                (was_previously_following ? NULL_VECTOR : pos),
-                (_client_wants_auto_rotate[client] ? ang : NULL_VECTOR),
-                NULL_VECTOR);
-
-            _spec_userid_target[client] = 0;
+            SetClientSpectateTarget(client, next_client);
         }
         _is_following_grenade[client] = false;
     }
@@ -238,28 +220,33 @@ public Action Cmd_Slot(int client, int argc)
 
     if (target != 0)
     {
-        float pos[3];
-        float ang[3];
-        GetClientAbsAngles(target, ang);
-
-        bool was_previously_following = (GetEntProp(client, Prop_Send, "m_iObserverMode") == OBS_MODE_FOLLOW);
-
-        if (!was_previously_following)
-        {
-            GetFreeflyCameraPosBehindPlayer(target, ang, pos);
-        }
-
-        SetEntPropEnt(client, Prop_Send, "m_hObserverTarget", target);
-
-        TeleportEntity(client,
-            (was_previously_following ? NULL_VECTOR : pos),
-            (_client_wants_auto_rotate[client] ? ang : NULL_VECTOR),
-            NULL_VECTOR);
-
-        _spec_userid_target[client] = 0;
+        SetClientSpectateTarget(client, target);
     }
 
     return Plugin_Handled;
+}
+
+void SetClientSpectateTarget(int client, int target)
+{
+    float pos[3];
+    float ang[3];
+    GetClientAbsAngles(target, ang);
+
+    bool was_previously_following = (GetEntProp(client, Prop_Send, "m_iObserverMode") == OBS_MODE_FOLLOW);
+
+    if (!was_previously_following)
+    {
+        GetFreeflyCameraPosBehindPlayer(target, ang, pos);
+    }
+
+    SetEntPropEnt(client, Prop_Send, "m_hObserverTarget", target);
+
+    TeleportEntity(client,
+        (was_previously_following ? NULL_VECTOR : pos),
+        (_client_wants_auto_rotate[client] ? ang : NULL_VECTOR),
+        NULL_VECTOR);
+
+    _spec_userid_target[client] = 0;
 }
 
 public void OnClientCookiesCached(int client)
@@ -615,22 +602,7 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
 
         int next_spec_client = GetNextClient(GetEntPropEnt(client, Prop_Send, "m_hObserverTarget"), true);
         if (next_spec_client != -1) {
-            GetClientAbsAngles(next_spec_client, final_ang);
-
-            bool was_previously_following = (GetEntProp(client, Prop_Send, "m_iObserverMode") == OBS_MODE_FOLLOW);
-            if (!was_previously_following) {
-                GetFreeflyCameraPosBehindPlayer(next_spec_client, final_ang, target_pos);
-            }
-
-            SetEntPropEnt(client, Prop_Send, "m_hObserverTarget", next_spec_client);
-
-            TeleportEntity(client,
-                (was_previously_following ? NULL_VECTOR : target_pos),
-                (_client_wants_auto_rotate[client] ? final_ang : NULL_VECTOR),
-                NULL_VECTOR);
-
-            _spec_userid_target[client] = 0;
-
+            SetClientSpectateTarget(client, next_spec_client);
             // Consume the button(s) so they don't trigger further spectator target switches
             buttons &= ~IN_AIM;
             _prev_consumed_buttons[client] |= IN_AIM;
