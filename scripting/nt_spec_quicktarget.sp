@@ -9,7 +9,7 @@
 
 #include "sp_shims.inc"
 
-#define PLUGIN_VERSION "0.8.1"
+#define PLUGIN_VERSION "0.8.2"
 
 #define NEO_MAX_PLAYERS 32
 
@@ -441,6 +441,11 @@ public Action Cmd_ListBinds(int client, int argc)
 {
     PrintToConsole(client, "\n== NT Spectator Quick Target bindings ==\n\
 sm_binds — This bindings list.\n\
+\n\
+sm_spec_slot <1-10> — Binds for spectating specific players in a 5v5 match \
+context, by ascending client index number.\n\
+The indices 1-5 represent Jinrai team, and indices 6-10 NSF team.\n\
+\n\
 sm_spec_toggle_lerp — Toggle lerping between the spectating events.\n\
 sm_spec_lerp_speed — Server cvar for controlling the lerp speed (sm_cvar ...).\n\
 \n\
@@ -450,11 +455,13 @@ sm_spec_follow_grenade — Follow the last live HE grenade.\n\
 \n\
 sm_spec_last_hurt — Target on the last player who was damaged.\n\
 sm_spec_last_shooter — Target on the last player who fired their weapon.\n\
+\n\
 sm_spec_last_event — Target on the latest event of any kind from the list below:\n\
-sm_spec_last_attacker — Target on the last player who did damage.\n\
-sm_spec_last_killer — Target on the last player who got a kill.");
+\n\
+\tsm_spec_last_attacker — Target on the last player who did damage.\n\
+\tsm_spec_last_killer — Target on the last player who got a kill.");
 #if defined REQUIRE_NT_GHOSTCAP_PLUGIN
-    PrintToConsole(client, "sm_spec_last_ghoster — Target on the last ghost carrier.");
+    PrintToConsole(client, "\tsm_spec_last_ghoster — Target on the last ghost carrier.");
 #endif
     ReplyToCommand(client, "\n[SM] Spectator Quick Target bindings have been printed to your console.");
     return Plugin_Handled;
