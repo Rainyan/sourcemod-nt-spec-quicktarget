@@ -9,7 +9,7 @@
 
 #include "sp_shims.inc"
 
-#define PLUGIN_VERSION "0.8.3"
+#define PLUGIN_VERSION "0.8.4"
 
 #define NEO_MAX_PLAYERS 32
 
@@ -199,7 +199,7 @@ public Action Cmd_Slot(int client, int argc)
 
     char num_buffer[3];
     GetCmdArg(1, num_buffer, sizeof(num_buffer));
-    int num = ClampInt(StringToInt(num_buffer), min, max);
+    int num = Clamp(StringToInt(num_buffer), min, max);
 
     // Jinrai: slots 1-5 and NSF: slots 6-10
     int team = (num <= 5) ? TEAM_JINRAI : TEAM_NSF;
@@ -931,12 +931,7 @@ stock bool VectorsEqual(const float[3] v1, const float[3] v2, const float max_ul
     }
 }
 
-stock int ClampInt(int value, int min, int max)
-{
-    return value < min ? min : value > max ? max : value;
-}
-
-stock float Clamp(float value, float min, float max)
+stock any Clamp(any value, any min, any max)
 {
     return value < min ? min : value > max ? max : value;
 }
@@ -947,7 +942,7 @@ stock float Lerp(float a, float b, float scale = 0.0)
         scale = GetGameFrameTime() * g_hCvar_LerpSpeed.FloatValue;
     }
 #if(0)
-    scale = fclamp(scale, -1.0, 1.0);
+    scale = Clamp(scale, -1.0, 1.0);
 #endif
     return a + (b - a) * scale;
 }
