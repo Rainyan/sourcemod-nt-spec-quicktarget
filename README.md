@@ -17,6 +17,10 @@ These commands are recommended to be used as binds. They only work for players i
 
 * *sm_binds* — Print this usage info into game console.
 
+* *sm_spec_slot <1-10>* — Binds for spectating specific players in a 5v5 match context, by ascending client index number.
+  * The indices 1-5 represent Jinrai team
+  * The indices 6-10 represent NSF team
+
 * *sm_spec_toggle_lerp* — Toggle smoothly lerping to the spectating events of this plugin. Defaults to off.
 * *sm_spec_follow_grenade* — Follow the last live HE grenade.
 * *sm_spec_latch_to_closest* — Spectate the player closest to camera position.
