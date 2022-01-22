@@ -9,7 +9,7 @@
 
 #include "sp_shims.inc"
 
-#define PLUGIN_VERSION "0.8.2"
+#define PLUGIN_VERSION "0.8.3"
 
 #define NEO_MAX_PLAYERS 32
 
@@ -140,12 +140,14 @@ public void OnPluginStart()
 
 public Action CommandListener_SpecNext(int client, const char[] command, int argc)
 {
-    if (_is_spectator[client] && _client_wants_auto_rotate[client])
+	// Even though the game handles spec_next natively,
+	// we call our own implementation here to enable custom camera rotation.
+    if (_is_spectator[client])
     {
-        int next_client = GetNextClient(GetEntPropEnt(client, Prop_Send, "m_hObserverTarget"));
-        if (next_client != -1)
+        int target = GetEntPropEnt(client, Prop_Send, "m_hObserverTarget");
+        if (target > 0 && target <= MaxClients && IsClientInGame(target))
         {
-            SetClientSpectateTarget(client, next_client);
+            SetClientSpectateTarget(client, target);
         }
         _is_following_grenade[client] = false;
     }
