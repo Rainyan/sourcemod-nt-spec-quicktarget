@@ -140,10 +140,12 @@ public void OnPluginStart()
 
 public Action CommandListener_SpecNext(int client, const char[] command, int argc)
 {
-	// Even though the game handles spec_next natively,
-	// we call our own implementation here to enable custom camera rotation.
+    // Even though the game handles spec_next natively,
+    // we call our own implementation here to enable custom camera rotation.
     if (_is_spectator[client])
     {
+        // The "spec_next" cmd will have already modified this,
+        // so we can just use the value it as-is.
         int target = GetEntPropEnt(client, Prop_Send, "m_hObserverTarget");
         if (target > 0 && target <= MaxClients && IsClientInGame(target))
         {
