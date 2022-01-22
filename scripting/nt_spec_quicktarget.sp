@@ -9,7 +9,7 @@
 
 #include "sp_shims.inc"
 
-#define PLUGIN_VERSION "0.7.14"
+#define PLUGIN_VERSION "0.8.0"
 
 #define NEO_MAX_PLAYERS 32
 
@@ -91,6 +91,8 @@ public void OnPluginStart()
     RegConsoleCmd("sm_spec_latch_to_closest", Cmd_LatchToClosest, "Start spectating the player closest to current camera position.");
     RegConsoleCmd("sm_spec_latch_to_fastest", Cmd_LatchToFastest, "Start spectating the player moving the fastest.");
 
+    RegConsoleCmd("sm_spec_slot", Cmd_Slot, "Target player by slot number (1-10).");
+
     CreateConVar("sm_spec_quicktarget_version", PLUGIN_VERSION, "NT Spectator Quick Target plugin version.", FCVAR_DONTRECORD);
 
     // TODO: convert into cookie
@@ -138,23 +140,44 @@ public void OnPluginStart()
 
 public Action CommandListener_SpecNext(int client, const char[] command, int argc)
 {
-    if (_is_spectator[client] && _client_wants_auto_rotate[client]) {
+    if (_is_spectator[client] && _client_wants_auto_rotate[client])
+    {
         int next_client = GetNextClient(GetEntPropEnt(client, Prop_Send, "m_hObserverTarget"));
-        if (next_client != -1) {
-            float angles[3];
-            GetClientAbsAngles(GetNextClient(GetEntPropEnt(client, Prop_Send, "m_hObserverTarget")), angles);
-            TeleportEntity(client, NULL_VECTOR, angles, NULL_VECTOR);
+        if (next_client != -1)
+        {
+            float pos[3];
+            float ang[3];
+            GetClientAbsAngles(next_client, ang);
+
+            bool was_previously_following = (GetEntProp(client, Prop_Send, "m_iObserverMode") == OBS_MODE_FOLLOW);
+
+            if (!was_previously_following)
+            {
+                GetFreeflyCameraPosBehindPlayer(next_client, ang, pos);
+            }
+
+            SetEntPropEnt(client, Prop_Send, "m_hObserverTarget", next_client);
+
+            TeleportEntity(client,
+                (was_previously_following ? NULL_VECTOR : pos),
+                (_client_wants_auto_rotate[client] ? ang : NULL_VECTOR),
+                NULL_VECTOR);
+
+            _spec_userid_target[client] = 0;
         }
         _is_following_grenade[client] = false;
     }
+
     return Plugin_Continue;
 }
 
 public Action Cmd_Cookies(int client, int argc)
 {
-    if (AreClientCookiesCached(client)) {
+    if (AreClientCookiesCached(client))
+    {
         OnClientCookiesCached(client);
     }
+
     return Plugin_Continue;
 }
 
@@ -166,6 +189,78 @@ public void OnAllPluginsLoaded()
     }
 }
 #endif
+
+public Action Cmd_Slot(int client, int argc)
+{
+    _is_following_grenade[client] = false;
+
+    if (!_is_spectator[client])
+    {
+        return Plugin_Handled;
+    }
+
+    int min = 1;
+    int max = 10;
+
+    if (argc != 1)
+    {
+        char cmdname[32];
+        GetCmdArg(0, cmdname, sizeof(cmdname));
+        ReplyToCommand(client, "Usage: %s <number in range %d-%d>",
+            cmdname, min, max);
+        return Plugin_Handled;
+    }
+
+    char num_buffer[3];
+    GetCmdArg(1, num_buffer, sizeof(num_buffer));
+    int num = ClampInt(StringToInt(num_buffer), min, max);
+
+    // Jinrai: slots 1-5 and NSF: slots 6-10
+    int team = (num <= 5) ? TEAM_JINRAI : TEAM_NSF;
+    if (team == TEAM_NSF)
+    {
+        // How manieth client do we want of this team. Offset NSF by -5 slots,
+        // so 6 becomes 1 for NSF, etc.
+        num -= 5;
+    }
+
+    int target;
+    for (int i = 1; i <= MaxClients && num > 0; ++i)
+    {
+        if (!IsClientInGame(i) || GetClientTeam(i) != team)
+        {
+            continue;
+        }
+
+        target = i;
+        --num;
+    }
+
+    if (target != 0)
+    {
+        float pos[3];
+        float ang[3];
+        GetClientAbsAngles(target, ang);
+
+        bool was_previously_following = (GetEntProp(client, Prop_Send, "m_iObserverMode") == OBS_MODE_FOLLOW);
+
+        if (!was_previously_following)
+        {
+            GetFreeflyCameraPosBehindPlayer(target, ang, pos);
+        }
+
+        SetEntPropEnt(client, Prop_Send, "m_hObserverTarget", target);
+
+        TeleportEntity(client,
+            (was_previously_following ? NULL_VECTOR : pos),
+            (_client_wants_auto_rotate[client] ? ang : NULL_VECTOR),
+            NULL_VECTOR);
+
+        _spec_userid_target[client] = 0;
+    }
+
+    return Plugin_Handled;
+}
 
 public void OnClientCookiesCached(int client)
 {
@@ -851,6 +946,11 @@ stock bool VectorsEqual(const float[3] v1, const float[3] v2, const float max_ul
         if (FloatAbs(v1[2] - v2[2]) > max_ulps) { return false; }
         return true;
     }
+}
+
+stock int ClampInt(int value, int min, int max)
+{
+    return value < min ? min : value > max ? max : value;
 }
 
 stock float Clamp(float value, float min, float max)
