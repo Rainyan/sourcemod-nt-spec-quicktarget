@@ -9,7 +9,7 @@
 
 #include "sp_shims.inc"
 
-#define PLUGIN_VERSION "0.8.8"
+#define PLUGIN_VERSION "0.8.9"
 
 #define NEO_MAX_PLAYERS 32
 
@@ -829,8 +829,13 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
                 _is_following_grenade[client] = false;
                 return Plugin_Continue;
             }
-            // Have to check because we aren't using an ent ref
-            if (!HasEntProp(_last_live_grenade, Prop_Send, "m_vecOrigin"))
+
+            // Only entity with property "m_bIsLive" in NT is the CBaseGrenade
+            // from which explosives derive. Need to check because we aren't
+            // using an ent ref, so this index could get recycled.
+            // TODO: could still land on an incorrect grenade with bad luck,
+            // so this should really get refactored into ent refs if possible.
+            if (!HasEntProp(_last_live_grenade, Prop_Send, "m_bIsLive"))
             {
                 _last_live_grenade = 0;
                 _is_following_grenade[client] = false;
