@@ -9,7 +9,7 @@
 
 #include "sp_shims.inc"
 
-#define PLUGIN_VERSION "0.8.5"
+#define PLUGIN_VERSION "0.8.6"
 
 #define NEO_MAX_PLAYERS 32
 
@@ -98,21 +98,26 @@ public void OnPluginStart()
     // TODO: convert into cookie
     g_hCvar_LerpSpeed = CreateConVar("sm_spec_lerp_speed", "2.0", "How fast to lerp the spectating event switch.", _, true, 0.001, true, 10.0);
 
-    if (!HookEventEx("player_death", Event_PlayerDeath, EventHookMode_Post)) {
+    if (!HookEventEx("player_death", Event_PlayerDeath, EventHookMode_Post))
+    {
         SetFailState("Failed to hook event player_death");
     }
-    else if (!HookEventEx("player_hurt", Event_PlayerHurt, EventHookMode_Post)) {
+    else if (!HookEventEx("player_hurt", Event_PlayerHurt, EventHookMode_Post))
+    {
         SetFailState("Failed to hook event player_hurt");
     }
-    else if (!HookEventEx("player_team", Event_PlayerTeam, EventHookMode_Pre)) {
+    else if (!HookEventEx("player_team", Event_PlayerTeam, EventHookMode_Pre))
+    {
         SetFailState("Failed to hook event player_team");
     }
-    else if (!HookEventEx("game_round_start", Event_RoundStart, EventHookMode_Post)) {
+    else if (!HookEventEx("game_round_start", Event_RoundStart, EventHookMode_Post))
+    {
         SetFailState("Failed to hook event game_round_start");
     }
 
     // Spectator team consumes IN_ATTACK bits when triggering spec_next, so need to set up a command listener, instead of capturing the buttons.
-    if (!AddCommandListener(CommandListener_SpecNext, "spec_next")) {
+    if (!AddCommandListener(CommandListener_SpecNext, "spec_next"))
+    {
         SetFailState("Failed to set command listener for spec_next");
     }
 
@@ -126,8 +131,10 @@ public void OnPluginStart()
         "NT Spectator Quick Target plugin: Automatically rotate according to spectator direction.",
         CookieAccess_Public);
 
-    for (int client = 1; client <= MaxClients; ++client) {
-        if (AreClientCookiesCached(client)) {
+    for (int client = 1; client <= MaxClients; ++client)
+    {
+        if (AreClientCookiesCached(client))
+        {
             OnClientCookiesCached(client);
         }
         if (IsClientInGame(client))
@@ -170,7 +177,8 @@ public Action Cmd_Cookies(int client, int argc)
 #if defined REQUIRE_NT_GHOSTCAP_PLUGIN
 public void OnAllPluginsLoaded()
 {
-    if (FindConVar("sm_ntghostcap_version") == null) {
+    if (FindConVar("sm_ntghostcap_version") == null)
+    {
         SetFailState("This plugin requires the nt_ghostcap plugin.");
     }
 }
@@ -288,10 +296,13 @@ public void OnClientDisconnected(int client)
 
 public void OnEntityCreated(int entity, const char[] classname)
 {
-    if (StrEqual(classname, "grenade_projectile")) {
+    if (StrEqual(classname, "grenade_projectile"))
+    {
         _last_live_grenade = entity;
     }
-    else if (StrEqual(classname, "weapon_ghost")) {
+    // TODO: Use OnGhostSpawn
+    else if (StrEqual(classname, "weapon_ghost"))
+    {
         _last_ghost = EntIndexToEntRef(entity);
     }
 }
@@ -327,7 +338,8 @@ public void Event_PlayerDeath(Event event, const char[] name,
 
     // If someone attempts to spectate to an already dead player,
     // give them some other event of interest, instead.
-    if (_last_hurt_userid == event.GetInt("userid")) {
+    if (_last_hurt_userid == event.GetInt("userid"))
+    {
         _last_hurt_userid = _last_event_userid_generic;
     }
 }
@@ -346,19 +358,23 @@ public void Event_PlayerTeam(Event event, const char[] name,
     int userid = event.GetInt("userid");
     int this_client = GetClientOfUserId(userid);
 
-    if (this_client != 0) {
+    if (this_client != 0)
+    {
         _spec_userid_target[this_client] = 0;
         _is_following_grenade[this_client] = false;
         _is_spectator[this_client] = (event.GetInt("team") == TEAM_SPECTATOR);
 
         // Cancel special spectate mode for anyone who was actively spectating this team-changing client.
-        for (int client = 1; client <= MaxClients; ++client) {
-            if (_spec_userid_target[client] == userid) {
+        for (int client = 1; client <= MaxClients; ++client)
+        {
+            if (_spec_userid_target[client] == userid)
+            {
                 _spec_userid_target[client] = 0;
             }
         }
     }
-    else {
+    else
+    {
         _is_spectator[this_client] = false;
     }
 }
@@ -375,11 +391,13 @@ public void Event_RoundStart(Event event, const char[] name,
         _follow_explosive[i] = 0;
     }
 
-    if (_last_ghost != 0) {
+    if (_last_ghost != 0)
+    {
         _is_currently_displaying_ghost_location = true;
         _ghost_display_location = NULL_VECTOR;
 
-        if (g_hTimer_FinishDisplayGhostSpawnLocation != INVALID_HANDLE) {
+        if (g_hTimer_FinishDisplayGhostSpawnLocation != INVALID_HANDLE)
+        {
             KillTimer(g_hTimer_FinishDisplayGhostSpawnLocation);
         }
         g_hTimer_FinishDisplayGhostSpawnLocation = CreateTimer(5.0, Timer_FinishDisplayGhostSpawnLocation);
@@ -393,23 +411,28 @@ void FadeSpecs()
     int specs[NEO_MAX_PLAYERS];
     int num_specs;
 
-    for (int client = 1; client <= MaxClients; ++client) {
-        if (!IsClientInGame(client) || !_is_spectator[client]) {
+    for (int client = 1; client <= MaxClients; ++client)
+    {
+        if (!IsClientInGame(client) || !_is_spectator[client])
+        {
             continue;
         }
 
-        if (!_client_wants_autospec_ghost_spawn[client]) {
+        if (!_client_wants_autospec_ghost_spawn[client])
+        {
             continue;
         }
 
-        if (_client_wants_no_fade_for_autospec_ghost_spawn[client]) {
+        if (_client_wants_no_fade_for_autospec_ghost_spawn[client])
+        {
             continue;
         }
 
         specs[num_specs++] = client;
     }
 
-    if (num_specs == 0) {
+    if (num_specs == 0)
+    {
         return;
     }
 
@@ -474,72 +497,72 @@ sm_spec_last_event — Target on the latest event of any kind from the list belo
 
 public Action Cmd_SpecLastAttacker(int client, int argc)
 {
-    if (GetClientTeam(client) != TEAM_SPECTATOR) {
-        return Plugin_Handled;
+    if (GetClientTeam(client) == TEAM_SPECTATOR)
+    {
+        _spec_userid_target[client] = _last_attacker_userid;
     }
-    _spec_userid_target[client] = _last_attacker_userid;
     return Plugin_Handled;
 }
 
 public Action Cmd_SpecLastKiller(int client, int argc)
 {
-    if (GetClientTeam(client) != TEAM_SPECTATOR) {
-        return Plugin_Handled;
+    if (GetClientTeam(client) == TEAM_SPECTATOR)
+    {
+        _spec_userid_target[client] = _last_killer_userid;
     }
-    _spec_userid_target[client] = _last_killer_userid;
     return Plugin_Handled;
 }
 
 public Action Cmd_SpecLastHurt(int client, int argc)
 {
-    if (GetClientTeam(client) != TEAM_SPECTATOR) {
-        return Plugin_Handled;
+    if (GetClientTeam(client) == TEAM_SPECTATOR)
+    {
+        _spec_userid_target[client] = _last_hurt_userid;
     }
-    _spec_userid_target[client] = _last_hurt_userid;
     return Plugin_Handled;
 }
 
 #if defined REQUIRE_NT_GHOSTCAP_PLUGIN
 public Action Cmd_SpecLastGhoster(int client, int argc)
 {
-    if (GetClientTeam(client) != TEAM_SPECTATOR) {
-        return Plugin_Handled;
+    if (GetClientTeam(client) == TEAM_SPECTATOR) {
+        _spec_userid_target[client] = _last_ghost_carrier_userid;
     }
-    _spec_userid_target[client] = _last_ghost_carrier_userid;
     return Plugin_Handled;
 }
 #endif
 
 public Action Cmd_ToggleLerp(int client, int argc)
 {
-    if (GetClientTeam(client) != TEAM_SPECTATOR) {
-        return Plugin_Handled;
+    if (GetClientTeam(client) == TEAM_SPECTATOR)
+    {
+        _is_lerping_specview[client] = !_is_lerping_specview[client];
     }
-    _is_lerping_specview[client] = !_is_lerping_specview[client];
     return Plugin_Handled;
 }
 
 public Action Cmd_SpecLastShooter(int client, int argc)
 {
-    if (GetClientTeam(client) != TEAM_SPECTATOR) {
-        return Plugin_Handled;
+    if (GetClientTeam(client) == TEAM_SPECTATOR)
+    {
+        _spec_userid_target[client] = _last_shooter_userid;
     }
-    _spec_userid_target[client] = _last_shooter_userid;
     return Plugin_Handled;
 }
 
 public Action Cmd_SpecLastEvent(int client, int argc)
 {
-    if (GetClientTeam(client) != TEAM_SPECTATOR) {
-        return Plugin_Handled;
+    if (GetClientTeam(client) == TEAM_SPECTATOR)
+    {
+        _spec_userid_target[client] = _last_event_userid_generic;
     }
-    _spec_userid_target[client] = _last_event_userid_generic;
     return Plugin_Handled;
 }
 
 public Action Cmd_FollowGrenade(int client, int argc)
 {
-    if (GetClientTeam(client) == TEAM_SPECTATOR) {
+    if (GetClientTeam(client) == TEAM_SPECTATOR)
+    {
         _is_following_grenade[client] = true;
     }
     return Plugin_Handled;
@@ -547,19 +570,19 @@ public Action Cmd_FollowGrenade(int client, int argc)
 
 public Action Cmd_LatchToClosest(int client, int argc)
 {
-    if (GetClientTeam(client) != TEAM_SPECTATOR) {
-        return Plugin_Handled;
+    if (GetClientTeam(client) == TEAM_SPECTATOR)
+    {
+        _client_wants_latch_to_closest[client] = true;
     }
-    _client_wants_latch_to_closest[client] = true;
     return Plugin_Handled;
 }
 
 public Action Cmd_LatchToFastest(int client, int argc)
 {
-    if (GetClientTeam(client) != TEAM_SPECTATOR) {
-        return Plugin_Handled;
+    if (GetClientTeam(client) == TEAM_SPECTATOR)
+    {
+        _client_wants_latch_to_fastest[client] = true;
     }
-    _client_wants_latch_to_fastest[client] = true;
     return Plugin_Handled;
 }
 
@@ -570,7 +593,8 @@ int GetNextClient(int client, bool iterate_backwards = false)
     int target_client = client;
     int add_num = iterate_backwards ? -1 : 1;
 
-    if (client > 0 && client <= MaxClients && IsClientInGame(client)) {
+    if (client > 0 && client <= MaxClients && IsClientInGame(client))
+    {
         for (int iter_client = mod((target_client + add_num), MaxClients);
             iter_client != client;
             iter_client = mod((iter_client + add_num), MaxClients))
@@ -592,8 +616,10 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
     int& seed, int mouse[2])
 {
     // Not a spectator
-    if (!_is_spectator[client]) {
-        if ((buttons & IN_ATTACK) && IsPlayerAlive(client)) {
+    if (!_is_spectator[client])
+    {
+        if ((buttons & IN_ATTACK) && IsPlayerAlive(client))
+        {
             _last_shooter_userid = GetClientUserId(client);
         }
         return Plugin_Continue;
@@ -605,15 +631,18 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
     // If player is doing a manual mouse2 spectator change ("spec_prev").
     // Spectator won't emit IN_ATTACK bits for "spec_next",
     // so using a command listener for that instead of also capturing it here.
-    if (buttons & IN_AIM) {
+    if (buttons & IN_AIM)
+    {
         _is_following_grenade[client] = false;
 
-        if (_prev_consumed_buttons[client] & IN_AIM) {
+        if (_prev_consumed_buttons[client] & IN_AIM)
+        {
             return Plugin_Continue;
         }
 
         int next_spec_client = GetNextClient(GetEntPropEnt(client, Prop_Send, "m_hObserverTarget"), true);
-        if (next_spec_client != -1) {
+        if (next_spec_client != -1)
+        {
             SetClientSpectateTarget(client, next_spec_client);
             // Consume the button(s) so they don't trigger further spectator target switches
             buttons &= ~IN_AIM;
@@ -621,39 +650,46 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
         }
         return Plugin_Continue;
     }
-    else {
+    else
+    {
         _prev_consumed_buttons[client] = 0;
     }
 
     float start_pos[3];
 
     // We should be doing a fancy camera pan of the new ghost spawn location
-    if (_client_wants_autospec_ghost_spawn[client] && _is_currently_displaying_ghost_location) {
-        if (buttons != 0 || mouse[0] != 0 || mouse[1] != 0) {
+    if (_client_wants_autospec_ghost_spawn[client] && _is_currently_displaying_ghost_location)
+    {
+        if (buttons != 0 || mouse[0] != 0 || mouse[1] != 0)
+        {
             _client_wants_autospec_ghost_spawn[client] = false;
             return Plugin_Continue;
         }
 
         int ghost = EntRefToEntIndex(_last_ghost);
-        if (ghost == INVALID_ENT_REFERENCE) {
+        if (ghost == INVALID_ENT_REFERENCE)
+        {
             return Plugin_Continue;
         }
 
-        if (VectorsEqual(_ghost_display_location, NULL_VECTOR)) {
+        if (VectorsExactlyEqual(_ghost_display_location, NULL_VECTOR))
+        {
             GetEntPropVector(_last_ghost, Prop_Send, "m_vecOrigin", _ghost_display_location);
             _ghost_display_location[0] += GetRandomFloat(-128.0, 128.0);
             _ghost_display_location[1] += GetRandomFloat(-128.0, 128.0);
             _ghost_display_location[2] += 64.0;
 #if defined DEBUG
-            if (VectorsEqual(_ghost_display_location, NULL_VECTOR)) {
-                PrintToServer("!! VectorsEqual: _ghost_display_location, NULL_VECTOR");
+            if (VectorsExactlyEqual(_ghost_display_location, NULL_VECTOR))
+            {
+                PrintToServer("!! VectorsExactlyEqual: _ghost_display_location, NULL_VECTOR");
                 return Plugin_Continue;
             }
 #endif
         }
 
         // Make sure we're free flying for the smooth transition
-        if (GetEntProp(client, Prop_Send, "m_iObserverMode") != OBS_MODE_FREEFLY) {
+        if (GetEntProp(client, Prop_Send, "m_iObserverMode") != OBS_MODE_FREEFLY)
+        {
             SetEntProp(client, Prop_Send, "m_iObserverMode", OBS_MODE_FREEFLY);
         }
 
@@ -675,49 +711,61 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
         return Plugin_Continue;
     }
 
-    if (_client_wants_latch_to_closest[client] || _client_wants_latch_to_fastest[client]) {
+    if (_client_wants_latch_to_closest[client] || _client_wants_latch_to_fastest[client])
+    {
         int obsmode = GetEntProp(client, Prop_Send, "m_iObserverMode");
         int current_spectated_target = GetEntPropEnt(client, Prop_Send, "m_hObserverTarget");
 
         int best_client = -1;
         float best_client_value;
 
-        if (_client_wants_latch_to_closest[client]) {
+        if (_client_wants_latch_to_closest[client])
+        {
             GetClientEyePosition(client, start_pos);
 
-            for (int i = 1; i <= MaxClients; ++i) {
-                if (!IsClientInGame(i) || i == client) {
+            for (int i = 1; i <= MaxClients; ++i)
+            {
+                if (!IsClientInGame(i) || i == client)
+                {
                     continue;
                 }
                 // Only ignore current target if already in OBS_MODE_FOLLOW.
-                if (obsmode == OBS_MODE_FOLLOW && i == current_spectated_target) {
+                if (obsmode == OBS_MODE_FOLLOW && i == current_spectated_target)
+                {
                     continue;
                 }
-                if (!IsPlayerAlive(i) || GetClientTeam(i) <= TEAM_SPECTATOR) {
+                if (!IsPlayerAlive(i) || GetClientTeam(i) <= TEAM_SPECTATOR)
+                {
                     continue;
                 }
 
                 GetClientEyePosition(i, target_pos);
 
                 float distance = GetVectorDistance(start_pos, target_pos, true);
-                if (best_client == -1 || distance < best_client_value) {
+                if (best_client == -1 || distance < best_client_value)
+                {
                     best_client = i;
                     best_client_value = distance;
                 }
             }
         }
-        else { // _client_wants_latch_to_fastest[client]
+        else
+        {
             float velocity[3];
 
-            for (int i = 1; i <= MaxClients; ++i) {
-                if (!IsClientInGame(i) || i == client) {
+            for (int i = 1; i <= MaxClients; ++i)
+            {
+                if (!IsClientInGame(i) || i == client)
+                {
                     continue;
                 }
                 // Only ignore current target if already in OBS_MODE_FOLLOW.
-                if (obsmode == OBS_MODE_FOLLOW && i == current_spectated_target) {
+                if (obsmode == OBS_MODE_FOLLOW && i == current_spectated_target)
+                {
                     continue;
                 }
-                if (!IsPlayerAlive(i) || GetClientTeam(i) <= TEAM_SPECTATOR) {
+                if (!IsPlayerAlive(i) || GetClientTeam(i) <= TEAM_SPECTATOR)
+                {
                     continue;
                 }
 
@@ -726,18 +774,21 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
                 velocity[2] = GetEntPropFloat(i, Prop_Send, "m_vecVelocity[2]");
 
                 float vel_length = GetVectorLength(velocity, true);
-                if (best_client == -1 || vel_length > best_client_value) {
+                if (best_client == -1 || vel_length > best_client_value)
+                {
                     best_client = i;
                     best_client_value = vel_length;
                 }
             }
         }
 
-        if (best_client == -1) {
+        if (best_client == -1)
+        {
             best_client = (current_spectated_target == -1 ? GetNextClient(current_spectated_target) : current_spectated_target);
         }
 
-        if (obsmode != OBS_MODE_FOLLOW) {
+        if (obsmode != OBS_MODE_FOLLOW)
+        {
             SetEntProp(client, Prop_Send, "m_iObserverMode", OBS_MODE_FOLLOW);
         }
         SetEntPropEnt(client, Prop_Send, "m_hObserverTarget", best_client);
@@ -747,7 +798,8 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
         _client_wants_latch_to_fastest[client] = false;
 
         // Only auto rotate if user wants it (and there also actually was a new target client whose angles to rotate into)
-        if (_client_wants_auto_rotate[client] && best_client != current_spectated_target) {
+        if (_client_wants_auto_rotate[client] && best_client != current_spectated_target)
+        {
             GetClientAbsAngles(best_client, final_ang);
             TeleportEntity(client, NULL_VECTOR, final_ang, NULL_VECTOR);
         }
@@ -755,19 +807,24 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
         return Plugin_Continue;
     }
 
-    if (_is_following_grenade[client]) {
-        if (buttons != 0) {
+    if (_is_following_grenade[client])
+    {
+        if (buttons != 0)
+        {
             _is_following_grenade[client] = false;
             return Plugin_Continue;
         }
 
-        if (_follow_explosive[client] == 0) {
-            if (_last_live_grenade == 0 || !IsValidEntity(_last_live_grenade)) {
+        if (_follow_explosive[client] == 0)
+        {
+            if (_last_live_grenade == 0 || !IsValidEntity(_last_live_grenade))
+            {
                 _is_following_grenade[client] = false;
                 return Plugin_Continue;
             }
             // Have to check because we aren't using an ent ref
-            if (!HasEntProp(_last_live_grenade, Prop_Send, "m_vecOrigin")) {
+            if (!HasEntProp(_last_live_grenade, Prop_Send, "m_vecOrigin"))
+            {
                 _last_live_grenade = 0;
                 _is_following_grenade[client] = false;
                 return Plugin_Continue;
@@ -775,7 +832,8 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
             _follow_explosive[client] = _last_live_grenade;
             GetEntPropVector(_last_live_grenade, Prop_Send, "m_vecOrigin", target_pos);
 
-            if (VectorsEqual(target_pos, NULL_VECTOR)) {
+            if (VectorsExactlyEqual(target_pos, NULL_VECTOR))
+            {
                 _last_live_grenade = 0;
                 _is_following_grenade[client] = false;
                 return Plugin_Continue;
@@ -784,29 +842,34 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
             GetClientEyePosition(client, start_pos);
             float sqdist = GetVectorDistance(start_pos, target_pos, true);
             // If the nade is too far, snap us closer to it for a smoother spec experience
-            if (sqdist > Pow(512.0, 2.0)) {
+            if (sqdist > Pow(512.0, 2.0))
+            {
                 TeleportEntity(client, target_pos, NULL_VECTOR, NULL_VECTOR);
             }
         }
 
-        if (_follow_explosive[client] == 0 || !IsValidEntity(_follow_explosive[client])) {
+        if (_follow_explosive[client] == 0 || !IsValidEntity(_follow_explosive[client]))
+        {
             _is_following_grenade[client] = false;
             return Plugin_Continue;
         }
 
         // Have to check because we aren't using an ent ref
-        if (!HasEntProp(_follow_explosive[client], Prop_Send, "m_vecOrigin")) {
+        if (!HasEntProp(_follow_explosive[client], Prop_Send, "m_vecOrigin"))
+        {
             _last_live_grenade = 0;
             _is_following_grenade[client] = false;
             return Plugin_Continue;
         }
         GetEntPropVector(_follow_explosive[client], Prop_Send, "m_vecOrigin", target_pos);
 
-        if (GetEntProp(client, Prop_Send, "m_iObserverMode") != OBS_MODE_FREEFLY) {
+        if (GetEntProp(client, Prop_Send, "m_iObserverMode") != OBS_MODE_FREEFLY)
+        {
             SetEntProp(client, Prop_Send, "m_iObserverMode", OBS_MODE_FREEFLY);
         }
 
-        if (VectorsEqual(target_pos, NULL_VECTOR)) {
+        if (VectorsExactlyEqual(target_pos, NULL_VECTOR))
+        {
             _is_following_grenade[client] = false;
             return Plugin_Continue;
         }
@@ -825,7 +888,8 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
         GetVectorAngles(target_dir, target_ang);
         LerpAngles(start_ang, target_ang, final_ang);
 
-        if (GetVectorDistance(final_pos, target_pos, true) > Pow(FREEFLY_CAMERA_DISTANCE_FROM_TARGET + 0.1, 2.0)) {
+        if (GetVectorDistance(final_pos, target_pos, true) > Pow(FREEFLY_CAMERA_DISTANCE_FROM_TARGET + 0.1, 2.0))
+        {
             TeleportEntity(client, final_pos, final_ang, NULL_VECTOR);
         }
 
@@ -833,12 +897,14 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
     }
 
     // No spectator transition active
-    if (_spec_userid_target[client] == 0) {
+    if (_spec_userid_target[client] == 0)
+    {
         return Plugin_Continue;
     }
 
     // Spectator is overriding the transition with their input
-    if (buttons != 0) {
+    if (buttons != 0)
+    {
         _spec_userid_target[client] = 0;
         return Plugin_Continue;
     }
@@ -853,7 +919,8 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
         return Plugin_Continue;
     }
 
-    if (_is_lerping_specview[client]) {
+    if (_is_lerping_specview[client])
+    {
         float final_pos[3];
 
         float start_ang[3];
@@ -879,13 +946,16 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
             (reached_target_distance && _client_wants_auto_rotate[client])
             ? NULL_VECTOR : final_ang, NULL_VECTOR);
 
-        if (!reached_target_distance) {
+        if (!reached_target_distance)
+        {
             // Make sure we're free flying for the smooth transition
-            if (GetEntProp(client, Prop_Send, "m_iObserverMode") != OBS_MODE_FREEFLY) {
+            if (GetEntProp(client, Prop_Send, "m_iObserverMode") != OBS_MODE_FREEFLY)
+            {
                 SetEntProp(client, Prop_Send, "m_iObserverMode", OBS_MODE_FREEFLY);
             }
         }
-        else {
+        else
+        {
 #if defined DEBUG
             PrintToChat(client, "Reached target (obsmode: %d, handle: %d)",
                 GetEntProp(client, Prop_Send, "m_iObserverMode"),
@@ -897,18 +967,21 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
             SetEntPropEnt(client, Prop_Send, "m_hObserverTarget", target_client);
             _spec_userid_target[client] = 0;
 
-            if (_client_wants_auto_rotate[client]) {
+            if (_client_wants_auto_rotate[client])
+            {
                 GetClientAbsAngles(target_client, final_ang);
                 TeleportEntity(client, NULL_VECTOR, final_ang, NULL_VECTOR);
             }
         }
     }
-    else {
+    else
+    {
         SetEntProp(client, Prop_Send, "m_iObserverMode", OBS_MODE_FOLLOW);
         SetEntPropEnt(client, Prop_Send, "m_hObserverTarget", target_client);
         _spec_userid_target[client] = 0;
 
-        if (_client_wants_auto_rotate[client]) {
+        if (_client_wants_auto_rotate[client])
+        {
             GetClientAbsAngles(target_client, final_ang);
             TeleportEntity(client, NULL_VECTOR, final_ang, NULL_VECTOR);
         }
@@ -917,19 +990,9 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
     return Plugin_Continue;
 }
 
-stock bool VectorsEqual(const float[3] v1, const float[3] v2, const float max_ulps = 0.0)
+stock bool VectorsExactlyEqual(const float[3] v1, const float[3] v2)
 {
-    // Needs to exactly equal.
-    if (max_ulps == 0) {
-        return v1[0] == v2[0] && v1[1] == v2[1] && v1[2] == v2[2];
-    }
-    // Allow an inaccuracy of size max_ulps.
-    else {
-        if (FloatAbs(v1[0] - v2[0]) > max_ulps) { return false; }
-        if (FloatAbs(v1[1] - v2[1]) > max_ulps) { return false; }
-        if (FloatAbs(v1[2] - v2[2]) > max_ulps) { return false; }
-        return true;
-    }
+    return v1[0] == v2[0] && v1[1] == v2[1] && v1[2] == v2[2];
 }
 
 stock any Clamp(any value, any min, any max)
@@ -939,7 +1002,8 @@ stock any Clamp(any value, any min, any max)
 
 stock float Lerp(float a, float b, float scale = 0.0)
 {
-    if (scale == 0) {
+    if (scale == 0)
+    {
         scale = GetGameFrameTime() * g_hCvar_LerpSpeed.FloatValue;
     }
 #if(0)
@@ -1012,10 +1076,6 @@ void GetFreeflyCameraPosBehindPlayer_Vec(const float camera_ang[3], float[3] out
 
 void GetFreeflyCameraPosBehindPlayer(int client, const float camera_ang[3], float[3] out_camera_pos)
 {
-    if (!IsClientInGame(client)) {
-        ThrowError("Client is not in game");
-    }
-
     GetClientEyePosition(client, out_camera_pos);
     GetFreeflyCameraPosBehindPlayer_Vec(camera_ang, out_camera_pos);
 }
