@@ -9,7 +9,7 @@
 
 #include "sp_shims.inc"
 
-#define PLUGIN_VERSION "0.8.4"
+#define PLUGIN_VERSION "0.8.5"
 
 #define NEO_MAX_PLAYERS 32
 
@@ -232,22 +232,23 @@ public Action Cmd_Slot(int client, int argc)
 
 void SetClientSpectateTarget(int client, int target)
 {
+    bool rotate = _client_wants_auto_rotate[client] ||
+        (GetEntProp(client, Prop_Send, "m_iObserverMode") == OBS_MODE_FREEFLY);
+
     float pos[3];
     float ang[3];
-    GetClientAbsAngles(target, ang);
 
-    bool was_previously_following = (GetEntProp(client, Prop_Send, "m_iObserverMode") == OBS_MODE_FOLLOW);
-
-    if (!was_previously_following)
+    if (rotate)
     {
+        GetClientAbsAngles(target, ang);
         GetFreeflyCameraPosBehindPlayer(target, ang, pos);
     }
 
     SetEntPropEnt(client, Prop_Send, "m_hObserverTarget", target);
 
     TeleportEntity(client,
-        (was_previously_following ? NULL_VECTOR : pos),
-        (_client_wants_auto_rotate[client] ? ang : NULL_VECTOR),
+        rotate ? pos : NULL_VECTOR,
+        rotate ? ang : NULL_VECTOR,
         NULL_VECTOR);
 
     _spec_userid_target[client] = 0;
