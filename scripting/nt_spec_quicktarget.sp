@@ -9,7 +9,7 @@
 
 #include "sp_shims.inc"
 
-#define PLUGIN_VERSION "0.8.7"
+#define PLUGIN_VERSION "0.8.8"
 
 #define NEO_MAX_PLAYERS 32
 
@@ -785,9 +785,17 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
             }
         }
 
+        _spec_userid_target[client] = 0;
+        _client_wants_latch_to_closest[client] = false;
+        _client_wants_latch_to_fastest[client] = false;
+
         if (best_client == -1)
         {
             best_client = (current_spectated_target == -1 ? GetNextClient(current_spectated_target) : current_spectated_target);
+            if (best_client == -1)
+            {
+                return Plugin_Continue;
+            }
         }
 
         if (obsmode != OBS_MODE_FOLLOW)
@@ -795,10 +803,6 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
             SetEntProp(client, Prop_Send, "m_iObserverMode", OBS_MODE_FOLLOW);
         }
         SetEntPropEnt(client, Prop_Send, "m_hObserverTarget", best_client);
-
-        _spec_userid_target[client] = 0;
-        _client_wants_latch_to_closest[client] = false;
-        _client_wants_latch_to_fastest[client] = false;
 
         // Only auto rotate if user wants it (and there also actually was a new target client whose angles to rotate into)
         if (_client_wants_auto_rotate[client] && best_client != current_spectated_target)
