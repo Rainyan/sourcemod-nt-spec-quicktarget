@@ -145,7 +145,7 @@ public Action CommandListener_SpecNext(int client, const char[] command, int arg
     if (_is_spectator[client])
     {
         // The "spec_next" cmd will have already modified this,
-        // so we can just use the value it as-is.
+        // so we can just use the value as-is.
         int target = GetEntPropEnt(client, Prop_Send, "m_hObserverTarget");
         if (target > 0 && target <= MaxClients && IsClientInGame(target))
         {
