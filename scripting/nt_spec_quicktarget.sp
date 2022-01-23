@@ -9,7 +9,7 @@
 
 #include "sp_shims.inc"
 
-#define PLUGIN_VERSION "0.8.6"
+#define PLUGIN_VERSION "0.8.7"
 
 #define NEO_MAX_PLAYERS 32
 
@@ -749,7 +749,7 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
                 }
             }
         }
-        else
+        else // _client_wants_latch_to_fastest[client]
         {
             float velocity[3];
 
@@ -769,12 +769,15 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
                     continue;
                 }
 
+                // Cannot retrieve "m_vecVelocity" as a vector. It seems to be
+                // defined as 3 separate floats, with the index "[n]" being
+                // part of the networked property string literals.
                 velocity[0] = GetEntPropFloat(i, Prop_Send, "m_vecVelocity[0]");
                 velocity[1] = GetEntPropFloat(i, Prop_Send, "m_vecVelocity[1]");
                 velocity[2] = GetEntPropFloat(i, Prop_Send, "m_vecVelocity[2]");
 
                 float vel_length = GetVectorLength(velocity, true);
-                if (best_client == -1 || vel_length > best_client_value)
+                if (vel_length > best_client_value || best_client == -1)
                 {
                     best_client = i;
                     best_client_value = vel_length;
