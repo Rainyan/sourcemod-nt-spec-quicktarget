@@ -9,7 +9,7 @@
 
 #include "sp_shims.inc"
 
-#define PLUGIN_VERSION "0.8.9"
+#define PLUGIN_VERSION "0.8.10"
 
 #define NEO_MAX_PLAYERS 32
 
@@ -1042,7 +1042,7 @@ stock float LerpAngles(const float a[3], const float b[3], float res[3], const f
 stock float LerpAngle(const float a, const float b, const float t = 0.0)
 {
     float dt = Clamp((b - a) - RoundToFloor((b - a) / 360.0) * 360.0, 0.0, 360.0);
-    return Lerp(a, a + (dt > 180 ? dt - 360 : dt), t);
+    return Lerp(a, a + (dt > 180.0 ? dt - 360.0 : dt), t);
 }
 
 // Needed for a "negative mod" that cycles back to positive range.
