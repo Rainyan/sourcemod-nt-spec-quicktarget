@@ -9,7 +9,7 @@
 
 #include "sp_shims.inc"
 
-#define PLUGIN_VERSION "0.8.10"
+#define PLUGIN_VERSION "0.9.0"
 
 #define NEO_MAX_PLAYERS 32
 
@@ -1002,7 +1002,7 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
     return Plugin_Continue;
 }
 
-stock bool VectorsExactlyEqual(const float[3] v1, const float[3] v2)
+stock bool VectorsExactlyEqual(const float v1[3], const float v2[3])
 {
     return v1[0] == v2[0] && v1[1] == v2[1] && v1[2] == v2[2];
 }
@@ -1024,14 +1024,14 @@ stock float Lerp(float a, float b, float scale = 0.0)
     return a + (b - a) * scale;
 }
 
-stock void VectorLerp(const float[3] v1, const float[3] v2, float[3] res, const float scale = 0.0)
+stock void VectorLerp(const float v1[3], const float v2[3], float res[3], const float scale = 0.0)
 {
     res[0] = Lerp(v1[0], v2[0], scale);
     res[1] = Lerp(v1[1], v2[1], scale);
     res[2] = Lerp(v1[2], v2[2], scale);
 }
 
-stock float LerpAngles(const float a[3], const float b[3], float res[3], const float t = 0.0)
+stock void LerpAngles(const float a[3], const float b[3], float res[3], const float t = 0.0)
 {
     res[0] = LerpAngle(a[0], b[0], t);
     res[1] = LerpAngle(a[1], b[1], t);
@@ -1052,7 +1052,7 @@ int mod(int a, int b)
     return r < 0 ? r + (b < 0 ? -b : b) : r;
 }
 
-void GetFreeflyCameraPosBehindPlayer_Vec(const float camera_ang[3], float[3] out_camera_pos)
+void GetFreeflyCameraPosBehindPlayer_Vec(const float camera_ang[3], float out_camera_pos[3])
 {
     float sp, sy, sr, cp, cy, cr;
     GetSinCos(camera_ang[0], sp, cp);
@@ -1086,7 +1086,7 @@ void GetFreeflyCameraPosBehindPlayer_Vec(const float camera_ang[3], float[3] out
     out_camera_pos[2] += GetVectorDotProduct(offset, matrix[2]);
 }
 
-void GetFreeflyCameraPosBehindPlayer(int client, const float camera_ang[3], float[3] out_camera_pos)
+void GetFreeflyCameraPosBehindPlayer(int client, const float camera_ang[3], float out_camera_pos[3])
 {
     GetClientEyePosition(client, out_camera_pos);
     GetFreeflyCameraPosBehindPlayer_Vec(camera_ang, out_camera_pos);
