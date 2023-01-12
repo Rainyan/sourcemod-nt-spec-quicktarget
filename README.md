@@ -12,6 +12,8 @@ If for whatever reason you don't want to run the nt_ghostcap plugin, uncomment t
 
 # Usage
 
+Also see [the wiki](https://github.com/Rainyan/sourcemod-nt-spec-quicktarget/wiki/So-You-Wanna-Be-An-Observer) for more info, example configs, etc.
+
 ## Console commands
 These commands are recommended to be used as binds. They only work for players in the spectator team.
 
