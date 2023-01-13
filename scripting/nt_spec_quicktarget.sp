@@ -541,6 +541,9 @@ sm_spec_slot <1-10> — Binds for spectating specific players in a 5v5 match \
 context, by ascending client index number.\n\
 The indices 1-5 represent Jinrai team, and indices 6-10 NSF team.\n\
 \n\
+sm_spec_caster_slot <1-32> — Binds for spectating other spectators' targets, \
+by ascending client index number.\n\
+\n\
 sm_spec_toggle_lerp — Toggle lerping between the spectating events.\n\
 sm_spec_lerp_speed — Server cvar for controlling the lerp speed (sm_cvar ...).\n\
 \n\
