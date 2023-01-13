@@ -23,6 +23,10 @@ These commands are recommended to be used as binds. They only work for players i
   * The indices 1-5 represent Jinrai team
   * The indices 6-10 represent NSF team
 
+* *sm_spec_caster_slot <1-32>* — Binds for spectating whatever/whomever another caster/observer is currently spectating, by slot number.
+  * Index 1 will be the first caster/observer other than yourself.
+  * Any other casters/observers will follow in contiguous n+1 order (1, 2, 3, ...) up to the maximum index of 32.
+
 * *sm_spec_toggle_lerp* — Toggle smoothly lerping to the spectating events of this plugin. Defaults to off.
 * *sm_spec_follow_grenade* — Follow the last live HE grenade.
 * *sm_spec_latch_to_closest* — Spectate the player closest to camera position.

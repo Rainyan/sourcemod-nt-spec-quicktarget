@@ -9,7 +9,7 @@
 
 #include "sp_shims.inc"
 
-#define PLUGIN_VERSION "0.9.0"
+#define PLUGIN_VERSION "0.10.0"
 
 #define NEO_MAX_PLAYERS 32
 
@@ -92,6 +92,7 @@ public void OnPluginStart()
     RegConsoleCmd("sm_spec_latch_to_fastest", Cmd_LatchToFastest, "Start spectating the player moving the fastest.");
 
     RegConsoleCmd("sm_spec_slot", Cmd_Slot, "Target player by slot number (1-10).");
+    RegConsoleCmd("sm_spec_caster_slot", Cmd_SpecCasterSlot, "Target caster by slot number.");
 
     CreateConVar("sm_spec_quicktarget_version", PLUGIN_VERSION, "NT Spectator Quick Target plugin version.", FCVAR_DONTRECORD);
 
@@ -238,6 +239,51 @@ public Action Cmd_Slot(int client, int argc)
     return Plugin_Handled;
 }
 
+public Action Cmd_SpecCasterSlot(int client, int argc)
+{
+    _is_following_grenade[client] = false;
+
+    if (!_is_spectator[client])
+    {
+        return Plugin_Handled;
+    }
+
+    int min = 1;
+    int max = MaxClients;
+
+    if (argc != 1)
+    {
+        char cmdname[32];
+        GetCmdArg(0, cmdname, sizeof(cmdname));
+        ReplyToCommand(client, "Usage: %s <number in range %d-%d>",
+            cmdname, min, max);
+        return Plugin_Handled;
+    }
+
+    char num_buffer[3];
+    GetCmdArg(1, num_buffer, sizeof(num_buffer));
+    int num = Clamp(StringToInt(num_buffer), min, max);
+
+    int target;
+    for (int i = 1; i <= MaxClients && num > 0; ++i)
+    {
+        if (!IsClientInGame(i) || i == client || GetClientTeam(i) != TEAM_SPECTATOR)
+        {
+            continue;
+        }
+
+        target = i;
+        --num;
+    }
+
+    if (target != 0)
+    {
+        SetClientSpectateProxyTarget(client, target);
+    }
+
+    return Plugin_Handled;
+}
+
 void SetClientSpectateTarget(int client, int target)
 {
     bool rotate = _client_wants_auto_rotate[client] ||
@@ -260,6 +306,27 @@ void SetClientSpectateTarget(int client, int target)
         NULL_VECTOR);
 
     _spec_userid_target[client] = 0;
+}
+
+void SetClientSpectateProxyTarget(int client, int proxy)
+{
+    int obs_mode = GetEntProp(proxy, Prop_Send, "m_iObserverMode");
+
+    float pos[3];
+    float ang[3];
+
+    GetClientEyePosition(proxy, pos);
+    GetClientEyeAngles(proxy, ang);
+
+    TeleportEntity(client, pos, ang, NULL_VECTOR);
+
+    if (obs_mode == OBS_MODE_FOLLOW)
+    {
+        int target = GetEntPropEnt(proxy, Prop_Send, "m_hObserverTarget");
+        SetEntPropEnt(client, Prop_Send, "m_hObserverTarget", target);
+    }
+
+    SetEntProp(client, Prop_Send, "m_iObserverMode", obs_mode);
 }
 
 public void OnClientCookiesCached(int client)
@@ -853,8 +920,11 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
 
             GetClientEyePosition(client, start_pos);
             float sqdist = GetVectorDistance(start_pos, target_pos, true);
-            // If the nade is too far, snap us closer to it for a smoother spec experience
-            if (sqdist > Pow(512.0, 2.0))
+
+// Pre-calculating 512^2 = 262144
+#define NADE_SNAP_DIST_SQUARED 262144
+            // If the nade is too far, snap us closer to it for a smoother spec experience.
+            if (sqdist > NADE_SNAP_DIST_SQUARED)
             {
                 TeleportEntity(client, target_pos, NULL_VECTOR, NULL_VECTOR);
             }
