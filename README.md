@@ -4,6 +4,7 @@ SourceMod plugin for Neotokyo. Binds for quickly spectating where the action is.
 # Compile requirements
 * SourceMod 1.8 or newer
 * [SourceMod Neotokyo include](https://github.com/softashell/sourcemod-nt-include)
+* The [scripting/include files](scripting/include) of this project must be accessible for the compiler.
 
 # Server requirements
 This plugin depends on the [nt_ghostcap](https://github.com/softashell/nt-sourcemod-plugins/blob/master/scripting/nt_ghostcap.sp) plugin.
