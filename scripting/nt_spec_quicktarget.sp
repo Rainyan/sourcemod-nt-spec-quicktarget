@@ -9,7 +9,7 @@
 
 #include "sp_shims.inc"
 
-#define PLUGIN_VERSION "0.10.0"
+#define PLUGIN_VERSION "0.11.0"
 
 #define NEO_MAX_PLAYERS 32
 
@@ -327,6 +327,8 @@ void SetClientSpectateProxyTarget(int client, int proxy)
     }
 
     SetEntProp(client, Prop_Send, "m_iObserverMode", obs_mode);
+
+    _spec_userid_target[client] = 0;
 }
 
 public void OnClientCookiesCached(int client)
