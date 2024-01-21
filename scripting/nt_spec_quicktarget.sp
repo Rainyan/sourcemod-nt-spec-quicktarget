@@ -9,7 +9,7 @@
 
 #include "sp_shims.inc"
 
-#define PLUGIN_VERSION "0.11.0"
+#define PLUGIN_VERSION "0.12.0"
 
 #define NEO_MAX_PLAYERS 32
 
@@ -23,6 +23,8 @@
 
 // This is the distance from player the spectator camera is at when following them.
 #define FREEFLY_CAMERA_DISTANCE_FROM_TARGET 100.0
+
+#define AIM_DOT_THRESHOLD 0.9
 
 //#define DEBUG
 
@@ -94,6 +96,8 @@ public void OnPluginStart()
     RegConsoleCmd("sm_spec_slot", Cmd_Slot, "Target player by slot number (1-10).");
     RegConsoleCmd("sm_spec_caster_slot", Cmd_SpecCasterSlot, "Target caster by slot number.");
 
+    RegConsoleCmd("sm_spec_latch_to_aim", Cmd_LatchToAim, "Start spectating the player closest to current aim.");
+
     CreateConVar("sm_spec_quicktarget_version", PLUGIN_VERSION, "NT Spectator Quick Target plugin version.", FCVAR_DONTRECORD);
 
     // TODO: convert into cookie
@@ -152,6 +156,14 @@ public Action CommandListener_SpecNext(int client, const char[] command, int arg
     // we call our own implementation here to enable custom camera rotation.
     if (_is_spectator[client])
     {
+        int buttons = GetClientButtons(client);
+
+        if (buttons & IN_SPRINT)
+        {
+            Cmd_LatchToAim(client, 0);
+            return Plugin_Handled;
+        }
+
         // The "spec_next" cmd will have already modified this,
         // so we can just use the value as-is.
         int target = GetEntPropEnt(client, Prop_Send, "m_hObserverTarget");
@@ -658,6 +670,33 @@ public Action Cmd_LatchToFastest(int client, int argc)
     return Plugin_Handled;
 }
 
+public Action Cmd_LatchToAim(int client, int argc)
+{
+    if (GetClientTeam(client) != TEAM_SPECTATOR)
+    {
+        return Plugin_Handled;
+    }
+
+    int ignore_target;
+    int obs_mode = GetEntProp(client, Prop_Send, "m_iObserverMode");
+    if (obs_mode == OBS_MODE_FOLLOW)
+    {
+        ignore_target = GetEntPropEnt(client, Prop_Send, "m_hObserverTarget");
+    }
+
+    int aim_client = GetAimClient(client, ignore_target);
+    if (aim_client)
+    {
+        SetClientSpectateTarget(client, aim_client);
+        if (obs_mode != OBS_MODE_FOLLOW)
+        {
+            SetEntProp(client, Prop_Send, "m_iObserverMode", OBS_MODE_FOLLOW);
+        }
+    }
+
+    return Plugin_Handled;
+}
+
 // Get the next (or previous, if iterate_backwards) valid alive player client index.
 // Returns the inputted client index if no other valid candidates were found.
 int GetNextClient(int client, bool iterate_backwards = false)
@@ -1087,6 +1126,11 @@ stock any Clamp(any value, any min, any max)
     return value < min ? min : value > max ? max : value;
 }
 
+stock any Max(any a, any b)
+{
+    return a > b ? a : b;
+}
+
 stock float Lerp(float a, float b, float scale = 0.0)
 {
     if (scale == 0)
@@ -1172,4 +1216,90 @@ stock void GetSinCos(const float degrees, float& sine, float& cosine)
     float radians = DegToRad(degrees);
     sine = Sine(radians);
     cosine = Cosine(radians);
+}
+
+enum struct AimClient {
+    int client;
+    float dot;
+    float distance;
+}
+
+int SortAimClientResults(int a, int b, ArrayList array, Handle unused)
+{
+    AimClient ac_a;
+    array.GetArray(a, ac_a);
+
+    AimClient ac_b;
+    array.GetArray(b, ac_b);
+
+    bool is_a_aimed = (ac_a.dot >= AIM_DOT_THRESHOLD);
+    bool is_b_aimed = (ac_b.dot >= AIM_DOT_THRESHOLD);
+
+    // If either is accurately aimed, use the one with better aim
+    if (is_a_aimed || is_b_aimed)
+    {
+        return ac_a.dot > ac_b.dot ? -1 : 1;
+    }
+    // Else, get the closest one
+    return ac_a.distance < ac_b.distance ? -1 : 1;
+}
+
+// Get the client closest to current view forward aim, ignoring collision.
+int GetAimClient(int client, int ignore_client=0)
+{
+    float pos[3];
+    GetClientEyePosition(client, pos);
+
+    float ang[3];
+    GetClientEyeAngles(client, ang);
+    float fwd[3];
+    GetAngleVectors(ang, fwd, NULL_VECTOR, NULL_VECTOR);
+
+    ArrayList results = new ArrayList(sizeof(AimClient));
+
+    for (int other_client = 1; other_client <= MaxClients; ++other_client)
+    {
+        if (!IsClientInGame(other_client) ||
+            client == other_client ||
+            ignore_client == other_client)
+        {
+            continue;
+        }
+
+        if (GetClientTeam(other_client) <= TEAM_SPECTATOR ||
+            !IsPlayerAlive(other_client))
+        {
+            continue;
+        }
+
+        float other_pos[3];
+        GetClientEyePosition(other_client, other_pos);
+
+        float dir[3];
+        SubtractVectors(other_pos, pos, dir);
+        if (0 == NormalizeVector(dir, dir))
+        {
+            continue;
+        }
+
+        float dot = GetVectorDotProduct(fwd, dir);
+        dot = Max(0, 1 / (1 - AIM_DOT_THRESHOLD) * (dot - 1) + 1);
+
+        AimClient ac;
+        ac.client = other_client;
+        ac.dot = dot;
+        ac.distance = GetVectorDistance(pos, other_pos, true);
+        results.PushArray(ac);
+    }
+
+    int res = 0;
+
+    if (results.Length > 0)
+    {
+        results.SortCustom(SortAimClientResults);
+        res = results.Get(0);
+    }
+
+    delete results;
+    return res;
 }
