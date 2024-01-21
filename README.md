@@ -32,6 +32,7 @@ These commands are recommended to be used as binds. They only work for players i
 * *sm_spec_follow_grenade* — Follow the last live HE grenade.
 * *sm_spec_latch_to_closest* — Spectate the player closest to camera position.
 * *sm_spec_latch_to_fastest* — Spectate the fastest moving player.
+* *sm_spec_latch_to_aim* — Spectate the player currently being aimed at, ignoring walls.
 
 * *sm_spec_last_hurt* — Target on the last player who was damaged.
 * *sm_spec_last_shooter* — Target on the last player who fired their weapon.
