@@ -9,7 +9,7 @@
 
 #include "sp_shims.inc"
 
-#define PLUGIN_VERSION "0.12.1"
+#define PLUGIN_VERSION "1.0.0"
 
 #define NEO_MAX_PLAYERS 32
 
