@@ -7,9 +7,9 @@
 
 #include <neotokyo>
 
-#include "sp_shims.inc"
+//#include "sp_shims.inc" // old compat shims, not required for currently supported SM range
 
-#define PLUGIN_VERSION "1.0.0"
+#define PLUGIN_VERSION "1.0.1"
 
 #define NEO_MAX_PLAYERS 32
 
@@ -23,8 +23,6 @@
 
 // This is the distance from player the spectator camera is at when following them.
 #define FREEFLY_CAMERA_DISTANCE_FROM_TARGET 100.0
-
-#define AIM_DOT_THRESHOLD 0.9
 
 //#define DEBUG
 
@@ -1221,7 +1219,6 @@ stock void GetSinCos(const float degrees, float& sine, float& cosine)
 enum struct AimClient {
     int client;
     float dot;
-    float distance;
 }
 
 int SortAimClientResults(int a, int b, Handle array, Handle unused)
@@ -1232,16 +1229,7 @@ int SortAimClientResults(int a, int b, Handle array, Handle unused)
     AimClient ac_b;
     view_as<ArrayList>(array).GetArray(b, ac_b);
 
-    bool is_a_aimed = (ac_a.dot >= AIM_DOT_THRESHOLD);
-    bool is_b_aimed = (ac_b.dot >= AIM_DOT_THRESHOLD);
-
-    // If either is accurately aimed, use the one with better aim
-    if (is_a_aimed || is_b_aimed)
-    {
-        return ac_a.dot > ac_b.dot ? -1 : 1;
-    }
-    // Else, get the closest one
-    return ac_a.distance < ac_b.distance ? -1 : 1;
+    return ac_a.dot > ac_b.dot ? -1 : 1;
 }
 
 // Get the client closest to current view forward aim, ignoring collision.
@@ -1283,12 +1271,10 @@ int GetAimClient(int client, int ignore_client=0)
         }
 
         float dot = GetVectorDotProduct(fwd, dir);
-        dot = Max(0, 1 / (1 - AIM_DOT_THRESHOLD) * (dot - 1) + 1);
 
         AimClient ac;
         ac.client = other_client;
         ac.dot = dot;
-        ac.distance = GetVectorDistance(pos, other_pos, true);
         results.PushArray(ac);
     }
 
