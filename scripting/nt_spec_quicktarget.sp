@@ -9,7 +9,7 @@
 
 #include "sp_shims.inc"
 
-#define PLUGIN_VERSION "0.12.0"
+#define PLUGIN_VERSION "0.12.1"
 
 #define NEO_MAX_PLAYERS 32
 
@@ -1224,13 +1224,13 @@ enum struct AimClient {
     float distance;
 }
 
-int SortAimClientResults(int a, int b, ArrayList array, Handle unused)
+int SortAimClientResults(int a, int b, Handle array, Handle unused)
 {
     AimClient ac_a;
-    array.GetArray(a, ac_a);
+    view_as<ArrayList>(array).GetArray(a, ac_a);
 
     AimClient ac_b;
-    array.GetArray(b, ac_b);
+    view_as<ArrayList>(array).GetArray(b, ac_b);
 
     bool is_a_aimed = (ac_a.dot >= AIM_DOT_THRESHOLD);
     bool is_b_aimed = (ac_b.dot >= AIM_DOT_THRESHOLD);
