@@ -9,7 +9,7 @@
 
 //#include "sp_shims.inc" // old compat shims, not required for currently supported SM range
 
-#define PLUGIN_VERSION "1.0.1"
+#define PLUGIN_VERSION "1.1.0"
 
 #define NEO_MAX_PLAYERS 32
 
@@ -61,6 +61,11 @@ static bool _client_wants_no_fade_for_autospec_ghost_spawn[NEO_MAX_PLAYERS + 1];
 static bool _client_wants_auto_rotate[NEO_MAX_PLAYERS + 1];
 static bool _client_wants_latch_to_closest[NEO_MAX_PLAYERS + 1];
 static bool _client_wants_latch_to_fastest[NEO_MAX_PLAYERS + 1];
+static bool _client_wants_orbit[NEO_MAX_PLAYERS + 1];
+
+static float _orbit_pivot[NEO_MAX_PLAYERS + 1][3];
+static float _pivot_dist[NEO_MAX_PLAYERS + 1];
+static float _prev_look_dir[NEO_MAX_PLAYERS + 1][3];
 
 public Plugin myinfo = {
     name = "NT Spectator Quick Target",
@@ -369,6 +374,7 @@ public void OnClientDisconnected(int client)
     _client_wants_auto_rotate[client] = false;
     _client_wants_latch_to_closest[client] = false;
     _client_wants_latch_to_fastest[client] = false;
+    _client_wants_orbit[client] = false;
 
     _prev_consumed_buttons[client] = 0;
 }
@@ -734,6 +740,62 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
         return Plugin_Continue;
     }
 
+    float start_pos[3];
+    float start_ang[3];
+
+    bool orbit = (buttons & IN_USE) ? true : false;
+    if (orbit)
+    {
+        GetClientEyePosition(client, start_pos);
+
+        bool new_orbit = !_client_wants_orbit[client];
+        if (new_orbit)
+        {
+            _client_wants_orbit[client] = true;
+            GetClientEyeAngles(client, start_ang);
+            TR_TraceRay(start_pos, start_ang, MASK_OPAQUE, RayType_Infinite);
+            TR_GetEndPosition(_orbit_pivot[client]);
+        }
+
+        float offset[3];
+        offset[1] = float(mouse[0]);
+        offset[2] = float(mouse[1]);
+        ScaleVector(offset, GetTickInterval() * 64.0);
+
+        float look_dir[3];
+        SubtractVectors(_orbit_pivot[client], start_pos, look_dir);
+        NormalizeVector(look_dir, look_dir);
+
+        if (FloatEqual(FloatAbs(look_dir[2]), 1.0, 0.01))
+        {
+            look_dir = _prev_look_dir[client];
+        }
+        else
+        {
+            _prev_look_dir[client] = look_dir;
+        }
+
+        GetVectorAngles(look_dir, start_ang);
+
+        float cur_dist = GetVectorDistance(start_pos, _orbit_pivot[client], false);
+        if (new_orbit)
+        {
+            _pivot_dist[client] = cur_dist;
+        }
+
+        float delta_dist = cur_dist - _pivot_dist[client];
+
+        ScaleVector(look_dir, delta_dist);
+        AddVectors(start_pos, look_dir, start_pos);
+
+        Transpose(start_pos, start_ang, offset);
+
+        TeleportEntity(client, start_pos, start_ang, NULL_VECTOR);
+
+        return Plugin_Continue;
+    }
+    _client_wants_orbit[client] = false;
+
     float target_pos[3];
     float final_ang[3];
 
@@ -764,7 +826,7 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
         _prev_consumed_buttons[client] = 0;
     }
 
-    float start_pos[3];
+
 
     // We should be doing a fancy camera pan of the new ghost spawn location
     if (_client_wants_autospec_ghost_spawn[client] && _is_currently_displaying_ghost_location)
@@ -802,7 +864,6 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
             SetEntProp(client, Prop_Send, "m_iObserverMode", OBS_MODE_FREEFLY);
         }
 
-        float start_ang[3];
         float target_dir[3];
         float target_ang[3];
         float actual_ghost_pos[3];
@@ -999,7 +1060,6 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
         }
 
         float final_pos[3];
-        float start_ang[3];
         float target_dir[3];
         float target_ang[3];
 
@@ -1046,8 +1106,6 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
     if (_is_lerping_specview[client])
     {
         float final_pos[3];
-
-        float start_ang[3];
         float target_dir[3];
         float target_ang[3];
 
@@ -1114,6 +1172,17 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
     return Plugin_Continue;
 }
 
+// For floats a and b, return whether they are equal within max_ulps
+// units in the last place. If max_ulps equals 0, they must exactly equal.
+stock bool FloatEqual(const float a, const float b, const float max_ulps = 0.0)
+{
+    if (max_ulps == 0)
+    {
+        return a == b;
+    }
+    return FloatAbs(a - b) <= max_ulps;
+}
+
 stock bool VectorsExactlyEqual(const float v1[3], const float v2[3])
 {
     return v1[0] == v2[0] && v1[1] == v2[1] && v1[2] == v2[2];
@@ -1169,12 +1238,12 @@ int mod(int a, int b)
     return r < 0 ? r + (b < 0 ? -b : b) : r;
 }
 
-void GetFreeflyCameraPosBehindPlayer_Vec(const float camera_ang[3], float out_camera_pos[3])
+void Transpose(float mut_pos[3], const float ang[3], const float offset[3])
 {
     float sp, sy, sr, cp, cy, cr;
-    GetSinCos(camera_ang[0], sp, cp);
-    GetSinCos(camera_ang[1], sy, cy);
-    GetSinCos(camera_ang[2], sr, cr);
+    GetSinCos(ang[0], sp, cp);
+    GetSinCos(ang[1], sy, cy);
+    GetSinCos(ang[2], sr, cr);
 
     float crcy = cr * cy;
     float crsy = cr * sy;
@@ -1194,13 +1263,19 @@ void GetFreeflyCameraPosBehindPlayer_Vec(const float camera_ang[3], float out_ca
     matrix[1][2] = sp * crsy - srcy;
     matrix[2][2] = cr * cp;
 
+    mut_pos[0] += GetVectorDotProduct(offset, matrix[0]);
+    mut_pos[1] += GetVectorDotProduct(offset, matrix[1]);
+    mut_pos[2] += GetVectorDotProduct(offset, matrix[2]);
+}
+
+void GetFreeflyCameraPosBehindPlayer_Vec(const float camera_ang[3], float out_camera_pos[3])
+{
     float offset[3];
-    // Move slightly further than FREEFLY_CAMERA_DISTANCE_FROM_TARGET for smoother camera transitions.
+    // Move slightly further than FREEFLY_CAMERA_DISTANCE_FROM_TARGET
+    // for smoother camera transitions.
     offset[0] = -FREEFLY_CAMERA_DISTANCE_FROM_TARGET - 0.1;
 
-    out_camera_pos[0] += GetVectorDotProduct(offset, matrix[0]);
-    out_camera_pos[1] += GetVectorDotProduct(offset, matrix[1]);
-    out_camera_pos[2] += GetVectorDotProduct(offset, matrix[2]);
+    Transpose(out_camera_pos, camera_ang, offset);
 }
 
 void GetFreeflyCameraPosBehindPlayer(int client, const float camera_ang[3], float out_camera_pos[3])
