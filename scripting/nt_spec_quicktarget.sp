@@ -51,7 +51,7 @@ static float _ghost_display_location[3];
 static int _prev_consumed_buttons[NEO_MAX_PLAYERS + 1];
 
 ConVar g_hCvar_LerpSpeed = null;
-//ConVar g_hCvar_SpecSpeed = null;
+ConVar g_hCvar_SpecSpeed = null;
 
 Handle _cookie_AutoSpecGhostSpawn = INVALID_HANDLE;
 Handle _cookie_NoFadeFromBlackOnAutoSpecGhost = INVALID_HANDLE;
@@ -62,11 +62,17 @@ static bool _client_wants_no_fade_for_autospec_ghost_spawn[NEO_MAX_PLAYERS + 1];
 static bool _client_wants_auto_rotate[NEO_MAX_PLAYERS + 1];
 static bool _client_wants_latch_to_closest[NEO_MAX_PLAYERS + 1];
 static bool _client_wants_latch_to_fastest[NEO_MAX_PLAYERS + 1];
-static bool _client_wants_orbit[NEO_MAX_PLAYERS + 1];
 
+static bool _client_wants_orbit[NEO_MAX_PLAYERS + 1];
 static float _orbit_pivot[NEO_MAX_PLAYERS + 1][3];
 static float _pivot_dist[NEO_MAX_PLAYERS + 1];
 static float _prev_look_dir[NEO_MAX_PLAYERS + 1][3];
+
+static bool _client_wants_camera_run[NEO_MAX_PLAYERS + 1];
+static float _camera_run_location[NEO_MAX_PLAYERS + 1][3];
+static float _camera_run_angles[NEO_MAX_PLAYERS + 1][3];
+
+static int _client_wants_vertical[NEO_MAX_PLAYERS + 1];
 
 public Plugin myinfo = {
     name = "NT Spectator Quick Target",
@@ -102,10 +108,14 @@ public void OnPluginStart()
 
     RegConsoleCmd("sm_spec_latch_to_aim", Cmd_LatchToAim, "Start spectating the player closest to current aim.");
 
+    RegConsoleCmd("sm_spec_pos", Cmd_Pos, "Teleport to pos.");
+    RegConsoleCmd("sm_spec_lerpto", Cmd_LerpTo, "Lerp to pos.");
+
     CreateConVar("sm_spec_quicktarget_version", PLUGIN_VERSION, "NT Spectator Quick Target plugin version.", FCVAR_DONTRECORD);
 
     // TODO: convert into cookie
     g_hCvar_LerpSpeed = CreateConVar("sm_spec_lerp_speed", "2.0", "How fast to lerp the spectating event switch.", _, true, 0.001, true, 10.0);
+    g_hCvar_SpecSpeed = FindConVar("sv_specspeed");
 
     if (!HookEventEx("player_death", Event_PlayerDeath, EventHookMode_Post))
     {
@@ -127,7 +137,24 @@ public void OnPluginStart()
     // Spectator team consumes IN_ATTACK bits when triggering spec_next, so need to set up a command listener, instead of capturing the buttons.
     if (!AddCommandListener(CommandListener_SpecNext, "spec_next"))
     {
-        SetFailState("Failed to set command listener for spec_next");
+        SetFailState("Failed to set command listener");
+    }
+
+    if (!AddCommandListener(CommandListener_UpOn, "+up"))
+    {
+        SetFailState("Failed to set command listener");
+    }
+    if (!AddCommandListener(CommandListener_UpOff, "-up"))
+    {
+        SetFailState("Failed to set command listener");
+    }
+    if (!AddCommandListener(CommandListener_UpOff, "+down"))
+    {
+        SetFailState("Failed to set command listener");
+    }
+    if (!AddCommandListener(CommandListener_UpOn, "-down"))
+    {
+        SetFailState("Failed to set command listener");
     }
 
     _cookie_AutoSpecGhostSpawn = RegClientCookie("spec_newround_ghost",
@@ -179,6 +206,18 @@ public Action CommandListener_SpecNext(int client, const char[] command, int arg
     }
 
     return Plugin_Continue;
+}
+
+public Action CommandListener_UpOn(int client, const char[] command, int argc)
+{
+    _client_wants_vertical[client] += 1;
+    return Plugin_Handled;
+}
+
+public Action CommandListener_UpOff(int client, const char[] command, int argc)
+{
+    _client_wants_vertical[client] -= 1;
+    return Plugin_Handled;
 }
 
 public Action Cmd_Cookies(int client, int argc)
@@ -376,8 +415,10 @@ public void OnClientDisconnected(int client)
     _client_wants_latch_to_closest[client] = false;
     _client_wants_latch_to_fastest[client] = false;
     _client_wants_orbit[client] = false;
+    _client_wants_camera_run[client] = false;
 
     _prev_consumed_buttons[client] = 0;
+    _client_wants_vertical[client]= 0;
 }
 
 public void OnEntityCreated(int entity, const char[] classname)
@@ -702,6 +743,174 @@ public Action Cmd_LatchToAim(int client, int argc)
     return Plugin_Handled;
 }
 
+void ParseArgPosAng_VarArg(int n, float pos[3], float ang[3])
+{
+    PrintToServer("n: %d", n);
+
+    char buffer[37];
+    int vec_idx, i;
+    for (i = 1; i <= n; ++i)
+    {
+        GetCmdArg(i, buffer, sizeof(buffer));
+        PrintToServer("POS %d: %s", i, buffer);
+
+        if (StrEqual(buffer, "setpos"))
+        {
+            continue;
+        }
+        int setang_pos = StrContains(buffer, ";setang");
+        if (setang_pos != -1)
+        {
+            buffer[setang_pos] = '\0';
+        }
+
+        pos[vec_idx++] = StringToFloat(buffer);
+        if (vec_idx >= 3)
+        {
+            break;
+        }
+    }
+
+    vec_idx = 0;
+    for (++i; i <= n; ++i)
+    {
+        GetCmdArg(i, buffer, sizeof(buffer));
+        PrintToServer("ANG %d: %s", i, buffer);
+
+
+        ang[vec_idx++] = StringToFloat(buffer);
+        if (vec_idx >= 2)
+        {
+            break;
+        }
+    }
+}
+
+// Assumes the "getpos" output format,
+// for example: "setpos -137.950668 274.335510 265.904480;setang 4.028078 -131.597855 0.000000"
+// Note that it has to be fully enclosed in double quotes!
+void ParseArgPosAng_1Arg(float pos[3], float ang[3])
+{
+    char buffer[37 * 7];
+    GetCmdArg(1, buffer, sizeof(buffer));
+
+    char buffers[7][37];
+    int n = ExplodeString(buffer, " ", buffers, sizeof(buffers), sizeof(buffers[]));
+
+    int vec_idx, i;
+    for (; i < n; ++i)
+    {
+        if (StrEqual(buffers[i], "setpos"))
+        {
+            continue;
+        }
+        int setang_pos = StrContains(buffers[i], ";setang");
+        if (setang_pos != -1)
+        {
+            buffers[i][setang_pos] = '\0';
+        }
+
+        pos[vec_idx++] = StringToFloat(buffers[i]);
+        if (vec_idx >= 3)
+        {
+            break;
+        }
+    }
+
+    vec_idx = 0;
+    for (++i; i < n; ++i)
+    {
+        ang[vec_idx++] = StringToFloat(buffers[i]);
+        if (vec_idx >= 2)
+        {
+            break;
+        }
+    }
+}
+
+public Action Cmd_Pos(int client, int argc)
+{
+    if (GetClientTeam(client) != TEAM_SPECTATOR)
+    {
+        return Plugin_Handled;
+    }
+
+    if (argc < 1)
+    {
+        char cmdname[32];
+        GetCmdArg(0, cmdname, sizeof(cmdname));
+        ReplyToCommand(client, "Usage: %s <pos x> <pos y> <pos z> <ang x> <ang y>", cmdname);
+        ReplyToCommand(client, "(You may optionally omit the angles.)");
+        return Plugin_Handled;
+    }
+
+    float pos[3];
+    float ang[3];
+    if (argc == 1)
+    {
+        ParseArgPosAng_1Arg(pos, ang);
+    }
+    else
+    {
+        char buffer[64];
+        for (int i = 0; i <= argc; ++i)
+        {
+            GetCmdArg(i, buffer, sizeof(buffer));
+        }
+
+        ParseArgPosAng_VarArg(argc, pos, ang);
+    }
+
+    CancelCameraRun(client);
+
+    float vel[3];
+    TeleportEntity(
+        client, pos,
+        GetVectorLength(ang, true) == 0 ? NULL_VECTOR : ang,
+        vel
+    );
+
+    return Plugin_Handled;
+}
+
+public Action Cmd_LerpTo(int client, int argc)
+{
+    if (GetClientTeam(client) != TEAM_SPECTATOR)
+    {
+        return Plugin_Handled;
+    }
+
+    if (argc < 1)
+    {
+        char cmdname[32];
+        GetCmdArg(0, cmdname, sizeof(cmdname));
+        ReplyToCommand(client, "Usage: %s <pos x> <pos y> <pos z> <ang x> <ang y>", cmdname);
+        ReplyToCommand(client, "(You may optionally omit the angles.)");
+        return Plugin_Handled;
+    }
+
+    _camera_run_location[client][0] = 0.0;
+    _camera_run_location[client][1] = 0.0;
+    _camera_run_location[client][2] = 0.0;
+
+    _camera_run_angles[client][0] = 0.0;
+    _camera_run_angles[client][1] = 0.0;
+    _camera_run_angles[client][2] = 0.0;
+
+    if (argc == 1)
+    {
+        ParseArgPosAng_1Arg(_camera_run_location[client], _camera_run_angles[client]);
+    }
+    else
+    {
+        ParseArgPosAng_VarArg(argc, _camera_run_location[client], _camera_run_angles[client]);
+    }
+
+    _client_wants_camera_run[client] = true;
+
+    return Plugin_Handled;
+}
+
 // Get the next (or previous, if iterate_backwards) valid alive player client index.
 // Returns the inputted client index if no other valid candidates were found.
 int GetNextClient(int client, bool iterate_backwards = false)
@@ -725,6 +934,58 @@ int GetNextClient(int client, bool iterate_backwards = false)
         }
     }
     return target_client;
+}
+
+void CancelCameraRun(int client)
+{
+    if (GetEntProp(client, Prop_Send, "m_iObserverMode") != OBS_MODE_FREEFLY)
+    {
+        SetEntProp(client, Prop_Send, "m_iObserverMode", OBS_MODE_FREEFLY);
+    }
+
+    _client_wants_camera_run[client] = false;
+
+    PrintToServer("CancelCameraRun");
+}
+
+void ApplyAbsVelocityImpulse(int entity, const float impulse[3])
+{
+    static Handle call = INVALID_HANDLE;
+    if (call == INVALID_HANDLE)
+    {
+        char sig[] = "\xD9\x05\x2A\x2A\x2A\x2A\x83\xEC\x0C\x56\x57\x8B\x7C\x24\x18\xD9\x07\x8B\xF1\xDA\xE9\xDF\xE0\xF6\xC4\x44\x7A\x2A\xD9\x05\x2A\x2A\x2A\x2A\xD9\x47\x04\xDA\xE9\xDF\xE0\xF6\xC4\x44\x7A\x2A\xD9\x05\x2A\x2A\x2A\x2A\xD9\x47\x08\xDA\xE9\xDF\xE0\xF6\xC4\x44\x7B\x2A\x80\xBE\xDE\x00\x00\x00\x06\x75\x2A\x8B\x8E\xF8\x01\x00\x00\x8B\x01\x8B\x90\xB0\x00\x00\x00";
+        StartPrepSDKCall(SDKCall_Entity);
+        PrepSDKCall_SetSignature(SDKLibrary_Server, sig, sizeof(sig) - 1);
+        PrepSDKCall_AddParameter(SDKType_Vector, SDKPass_ByRef);
+        call = EndPrepSDKCall();
+        if (call == INVALID_HANDLE)
+        {
+            SetFailState("Failed to prepare SDK call");
+        }
+    }
+    SDKCall(call, entity, impulse);
+}
+
+public void OnGameFrame()
+{
+    float impulse[3];
+    for (int client = 1; client <= MaxClients; ++client)
+    {
+        if (!_is_spectator[client])
+        {
+            continue;
+        }
+
+        if (_client_wants_vertical[client])
+        {
+            float scale = g_hCvar_SpecSpeed.FloatValue / 3.0;
+            float base = 901.81 * 1.5;
+
+            impulse[2] = scale * _client_wants_vertical[client] * base *
+                GetGameFrameTime();
+            ApplyAbsVelocityImpulse(client, impulse);
+        }
+    }
 }
 
 public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3],
@@ -1102,49 +1363,85 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
         return Plugin_Continue;
     }
 
-    // No spectator transition active
-    if (_spec_userid_target[client] == 0)
-    {
-        return Plugin_Continue;
-    }
-
     // Spectator is overriding the transition with their input
     if (buttons != 0)
     {
         _spec_userid_target[client] = 0;
+
+        if (_client_wants_camera_run[client])
+        {
+            CancelCameraRun(client);
+        }
+
         return Plugin_Continue;
     }
 
     int target_client = GetClientOfUserId(_spec_userid_target[client]);
-    // Make sure the target hasn't disconnected
-    if (target_client == 0 ||
-        // And make sure they're still alive
-        !IsPlayerAlive(target_client))
+
+    if (!_client_wants_camera_run[client])
     {
-        _spec_userid_target[client] = 0;
-        return Plugin_Continue;
+        // No spectator transition active
+        if (_spec_userid_target[client] == 0)
+        {
+            return Plugin_Continue;
+        }
+
+        // Make sure the target hasn't disconnected
+        if (target_client == 0 ||
+            // And make sure they're still alive
+            !IsPlayerAlive(target_client))
+        {
+            _spec_userid_target[client] = 0;
+            return Plugin_Continue;
+        }
+    }
+    else // wants camera run
+    {
+        if (mouse[0] || mouse[1])
+        {
+           CancelCameraRun(client);
+           return Plugin_Continue;
+        }
     }
 
-    if (_is_lerping_specview[client])
+    if (_client_wants_camera_run[client] || _is_lerping_specview[client])
     {
         float final_pos[3];
         float target_dir[3];
         float target_ang[3];
 
         GetClientEyePosition(client, start_pos);
-        GetClientEyePosition(target_client, target_pos);
-        VectorLerp(start_pos, target_pos, final_pos);
-
         GetClientEyeAngles(client, start_ang);
-        SubtractVectors(target_pos, start_pos, target_dir);
-        NormalizeVector(target_dir, target_dir);
-        GetVectorAngles(target_dir, target_ang);
+
+        if (_client_wants_camera_run[client])
+        {
+            target_pos = _camera_run_location[client];
+
+            target_ang = _camera_run_angles[client];
+        }
+        else
+        {
+            GetClientEyePosition(target_client, target_pos);
+
+            SubtractVectors(target_pos, start_pos, target_dir);
+            NormalizeVector(target_dir, target_dir);
+            GetVectorAngles(target_dir, target_ang);
+        }
+
+        VectorLerp(start_pos, target_pos, final_pos);
         LerpAngles(start_ang, target_ang, final_ang);
 
-        // Observer follow mode distance from spectated player is 100 units (expressed as squared here)
-        bool reached_target_distance =
-            (GetVectorDistance(start_pos, target_pos, true) <=
-            (FREEFLY_CAMERA_DISTANCE_FROM_TARGET * FREEFLY_CAMERA_DISTANCE_FROM_TARGET));
+        bool reached_target_distance;
+
+        if (_client_wants_camera_run[client])
+        {
+            reached_target_distance = (GetVectorDistance(start_ang, target_ang, true) <= 10.0) && (GetVectorDistance(start_pos, target_pos, true) <= 10.0);
+        }
+        else
+        {
+            // Observer follow mode distance from spectated player is 100 units (expressed as squared here)
+            reached_target_distance = (GetVectorDistance(start_pos, target_pos, true) <= (FREEFLY_CAMERA_DISTANCE_FROM_TARGET * FREEFLY_CAMERA_DISTANCE_FROM_TARGET));
+        }
 
         TeleportEntity(client, final_pos,
             (reached_target_distance && _client_wants_auto_rotate[client])
@@ -1166,9 +1463,18 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
                 GetEntPropEnt(client, Prop_Send, "m_hObserverTarget"));
 #endif
 
-            // Reached target, start following the spectated player
-            SetEntProp(client, Prop_Send, "m_iObserverMode", OBS_MODE_FOLLOW);
-            SetEntPropEnt(client, Prop_Send, "m_hObserverTarget", target_client);
+            if (_client_wants_camera_run[client])
+            {
+                CancelCameraRun(client);
+                return Plugin_Continue;
+            }
+            else
+            {
+                // Reached target, start following the spectated player
+                SetEntProp(client, Prop_Send, "m_iObserverMode", OBS_MODE_FOLLOW);
+                SetEntPropEnt(client, Prop_Send, "m_hObserverTarget", target_client);
+            }
+
             _spec_userid_target[client] = 0;
 
             if (_client_wants_auto_rotate[client])
@@ -1180,9 +1486,12 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
     }
     else
     {
-        SetEntProp(client, Prop_Send, "m_iObserverMode", OBS_MODE_FOLLOW);
-        SetEntPropEnt(client, Prop_Send, "m_hObserverTarget", target_client);
-        _spec_userid_target[client] = 0;
+        if (!_client_wants_camera_run[client])
+        {
+            SetEntProp(client, Prop_Send, "m_iObserverMode", OBS_MODE_FOLLOW);
+            SetEntPropEnt(client, Prop_Send, "m_hObserverTarget", target_client);
+            _spec_userid_target[client] = 0;
+        }
 
         if (_client_wants_auto_rotate[client])
         {
