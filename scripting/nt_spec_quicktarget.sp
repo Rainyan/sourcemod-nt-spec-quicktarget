@@ -744,7 +744,7 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
     float start_pos[3];
     float start_ang[3];
 
-    bool orbit = (buttons & IN_USE) ? true : false;
+    bool orbit = (buttons & IN_THERMOPTIC) ? true : false;
     if (orbit)
     {
         GetClientEyePosition(client, start_pos);
@@ -754,7 +754,7 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
         {
             _client_wants_orbit[client] = true;
             GetClientEyeAngles(client, start_ang);
-            TR_TraceRay(start_pos, start_ang, MASK_OPAQUE, RayType_Infinite);
+            TR_TraceRay(start_pos, start_ang, MASK_VISIBLE, RayType_Infinite);
             TR_GetEndPosition(_orbit_pivot[client]);
         }
 
