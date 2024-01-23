@@ -705,11 +705,14 @@ public Action Cmd_LatchToAim(int client, int argc)
 
 void ParseArgPosAng_VarArg(int n, float pos[3], float ang[3])
 {
+    PrintToServer("n: %d", n);
+
     char buffer[37];
     int vec_idx, i;
     for (i = 1; i <= n; ++i)
     {
         GetCmdArg(i, buffer, sizeof(buffer));
+        PrintToServer("POS %d: %s", i, buffer);
 
         if (StrEqual(buffer, "setpos"))
         {
@@ -732,6 +735,8 @@ void ParseArgPosAng_VarArg(int n, float pos[3], float ang[3])
     for (++i; i <= n; ++i)
     {
         GetCmdArg(i, buffer, sizeof(buffer));
+        PrintToServer("ANG %d: %s", i, buffer);
+
 
         ang[vec_idx++] = StringToFloat(buffer);
         if (vec_idx >= 2)
@@ -899,25 +904,109 @@ void CancelCameraRun(int client)
     }
 
     _client_wants_camera_run[client] = false;
+
+    PrintToServer("CancelCameraRun");
 }
 
-public void OnGameFrame()
+public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3],
+    float angles[3], int& weapon, int& subtype, int& cmdnum, int& tickcount,
+    int& seed, int mouse[2])
 {
-    for (int client = 1; client <= MaxClients; ++client)
+    // Not a spectator
+    if (!_is_spectator[client])
     {
-        if (IsClientInGame(client) && GetClientTeam(client) == TEAM_SPECTATOR)
+        if ((buttons & IN_ATTACK) && IsPlayerAlive(client))
         {
-            ObsClientFrame(client);
+            _last_shooter_userid = GetClientUserId(client);
         }
+        return Plugin_Continue;
     }
-}
 
-Action ObsClientFrame(int client)
-{
     float target_pos[3];
     float final_ang[3];
 
+    // If player is doing a manual mouse2 spectator change ("spec_prev").
+    // Spectator won't emit IN_ATTACK bits for "spec_next",
+    // so using a command listener for that instead of also capturing it here.
+    if (buttons & IN_AIM)
+    {
+        _is_following_grenade[client] = false;
+
+        if (_prev_consumed_buttons[client] & IN_AIM)
+        {
+            return Plugin_Continue;
+        }
+
+        int next_spec_client = GetNextClient(GetEntPropEnt(client, Prop_Send, "m_hObserverTarget"), true);
+        if (next_spec_client != -1)
+        {
+            SetClientSpectateTarget(client, next_spec_client);
+            // Consume the button(s) so they don't trigger further spectator target switches
+            buttons &= ~IN_AIM;
+            _prev_consumed_buttons[client] |= IN_AIM;
+        }
+        return Plugin_Continue;
+    }
+    else
+    {
+        _prev_consumed_buttons[client] = 0;
+    }
+
     float start_pos[3];
+
+    // We should be doing a fancy camera pan of the new ghost spawn location
+    if (_client_wants_autospec_ghost_spawn[client] && _is_currently_displaying_ghost_location)
+    {
+        if (buttons != 0 || mouse[0] != 0 || mouse[1] != 0)
+        {
+            _client_wants_autospec_ghost_spawn[client] = false;
+            return Plugin_Continue;
+        }
+
+        int ghost = EntRefToEntIndex(_last_ghost);
+        if (ghost == INVALID_ENT_REFERENCE)
+        {
+            return Plugin_Continue;
+        }
+
+        if (VectorsExactlyEqual(_ghost_display_location, NULL_VECTOR))
+        {
+            GetEntPropVector(_last_ghost, Prop_Send, "m_vecOrigin", _ghost_display_location);
+            _ghost_display_location[0] += GetRandomFloat(-128.0, 128.0);
+            _ghost_display_location[1] += GetRandomFloat(-128.0, 128.0);
+            _ghost_display_location[2] += 64.0;
+#if defined DEBUG
+            if (VectorsExactlyEqual(_ghost_display_location, NULL_VECTOR))
+            {
+                PrintToServer("!! VectorsExactlyEqual: _ghost_display_location, NULL_VECTOR");
+                return Plugin_Continue;
+            }
+#endif
+        }
+
+        // Make sure we're free flying for the smooth transition
+        if (GetEntProp(client, Prop_Send, "m_iObserverMode") != OBS_MODE_FREEFLY)
+        {
+            SetEntProp(client, Prop_Send, "m_iObserverMode", OBS_MODE_FREEFLY);
+        }
+
+        float start_ang[3];
+        float target_dir[3];
+        float target_ang[3];
+        float actual_ghost_pos[3];
+
+        GetEntPropVector(_last_ghost, Prop_Send, "m_vecOrigin", actual_ghost_pos);
+        GetClientEyePosition(client, start_pos);
+        SubtractVectors(actual_ghost_pos, start_pos, target_dir);
+        NormalizeVector(target_dir, target_dir);
+        GetVectorAngles(target_dir, target_ang);
+        GetClientEyeAngles(client, start_ang);
+        LerpAngles(start_ang, target_ang, final_ang);
+
+        TeleportEntity(client, _ghost_display_location, final_ang, NULL_VECTOR);
+
+        return Plugin_Continue;
+    }
 
     if (_client_wants_latch_to_closest[client] || _client_wants_latch_to_fastest[client])
     {
@@ -1024,8 +1113,6 @@ Action ObsClientFrame(int client)
 
     if (_is_following_grenade[client])
     {
-        int buttons = GetClientButtons(client);
-
         if (buttons != 0)
         {
             _is_following_grenade[client] = false;
@@ -1121,11 +1208,45 @@ Action ObsClientFrame(int client)
         return Plugin_Continue;
     }
 
+    // Spectator is overriding the transition with their input
+    if (buttons != 0)
+    {
+        _spec_userid_target[client] = 0;
+
+        if (_client_wants_camera_run[client])
+        {
+            CancelCameraRun(client);
+        }
+
+        return Plugin_Continue;
+    }
+
     int target_client = GetClientOfUserId(_spec_userid_target[client]);
 
-    if (!_client_wants_camera_run[client] && !target_client)
+    if (!_client_wants_camera_run[client])
     {
-        return Plugin_Continue;
+        // No spectator transition active
+        if (_spec_userid_target[client] == 0)
+        {
+            return Plugin_Continue;
+        }
+
+        // Make sure the target hasn't disconnected
+        if (target_client == 0 ||
+            // And make sure they're still alive
+            !IsPlayerAlive(target_client))
+        {
+            _spec_userid_target[client] = 0;
+            return Plugin_Continue;
+        }
+    }
+    else // wants camera run
+    {
+        if (mouse[0] || mouse[1])
+        {
+           CancelCameraRun(client);
+           return Plugin_Continue;
+        }
     }
 
     if (_client_wants_camera_run[client] || _is_lerping_specview[client])
@@ -1214,103 +1335,15 @@ Action ObsClientFrame(int client)
     {
         if (!_client_wants_camera_run[client])
         {
-            if (IsClientInGame(client))
-            {
-                SetEntProp(client, Prop_Send, "m_iObserverMode", OBS_MODE_FOLLOW);
-                SetEntPropEnt(client, Prop_Send, "m_hObserverTarget", target_client);
-                _spec_userid_target[client] = 0;
-            }
+            SetEntProp(client, Prop_Send, "m_iObserverMode", OBS_MODE_FOLLOW);
+            SetEntPropEnt(client, Prop_Send, "m_hObserverTarget", target_client);
+            _spec_userid_target[client] = 0;
         }
 
         if (_client_wants_auto_rotate[client])
         {
             GetClientAbsAngles(target_client, final_ang);
             TeleportEntity(client, NULL_VECTOR, final_ang, NULL_VECTOR);
-        }
-    }
-
-    return Plugin_Continue;
-}
-
-public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3],
-    float angles[3], int& weapon, int& subtype, int& cmdnum, int& tickcount,
-    int& seed, int mouse[2])
-{
-    // Not a spectator
-    if (!_is_spectator[client])
-    {
-        if ((buttons & IN_ATTACK) && IsPlayerAlive(client))
-        {
-            _last_shooter_userid = GetClientUserId(client);
-        }
-        return Plugin_Continue;
-    }
-
-    // If player is doing a manual mouse2 spectator change ("spec_prev").
-    // Spectator won't emit IN_ATTACK bits for "spec_next",
-    // so using a command listener for that instead of also capturing it here.
-    if (buttons & IN_AIM)
-    {
-        _is_following_grenade[client] = false;
-
-        if (_prev_consumed_buttons[client] & IN_AIM)
-        {
-            return Plugin_Continue;
-        }
-
-        int next_spec_client = GetNextClient(GetEntPropEnt(client, Prop_Send, "m_hObserverTarget"), true);
-        if (next_spec_client != -1)
-        {
-            SetClientSpectateTarget(client, next_spec_client);
-            // Consume the button(s) so they don't trigger further spectator target switches
-            buttons &= ~IN_AIM;
-            _prev_consumed_buttons[client] |= IN_AIM;
-        }
-        return Plugin_Continue;
-    }
-    else
-    {
-        _prev_consumed_buttons[client] = 0;
-    }
-
-    // Spectator is overriding the transition with their input
-    if (buttons != 0)
-    {
-        _spec_userid_target[client] = 0;
-
-        if (_client_wants_camera_run[client])
-        {
-            CancelCameraRun(client);
-        }
-
-        return Plugin_Continue;
-    }
-
-    int target_client = GetClientOfUserId(_spec_userid_target[client]);
-
-    if (!_client_wants_camera_run[client])
-    {
-        // No spectator transition active
-        if (_spec_userid_target[client] == 0)
-        {
-            return Plugin_Continue;
-        }
-
-        // Make sure the target hasn't disconnected
-        if (target_client == 0 ||
-            // And make sure they're still alive
-            !IsPlayerAlive(target_client))
-        {
-            _spec_userid_target[client] = 0;
-            return Plugin_Continue;
-        }
-    }
-    else // wants camera run
-    {
-        if (mouse[0] || mouse[1])
-        {
-           CancelCameraRun(client);
-           return Plugin_Continue;
         }
     }
 
