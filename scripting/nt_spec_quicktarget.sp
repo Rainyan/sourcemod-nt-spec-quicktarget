@@ -720,6 +720,31 @@ int GetNextClient(int client, bool iterate_backwards = false)
     return target_client;
 }
 
+void Frame_EyePosFix(DataPack data)
+{
+    data.Reset();
+
+    int client = GetClientOfUserId(data.ReadCell());
+    if (client == 0 || !IsClientInGame(client))
+    {
+        delete data;
+        return;
+    }
+
+    float pos[3];
+    float ang[3];
+    pos[0] = data.ReadFloat();
+    pos[1] = data.ReadFloat();
+    pos[2] = data.ReadFloat();
+    ang[0] = data.ReadFloat();
+    ang[1] = data.ReadFloat();
+    ang[2] = data.ReadFloat();
+
+    delete data;
+
+    TeleportEntity(client, pos, ang, NULL_VECTOR);
+}
+
 public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3],
     float angles[3], int& weapon, int& subtype, int& cmdnum, int& tickcount,
     int& seed, int mouse[2])
@@ -736,6 +761,37 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
 
     float target_pos[3];
     float final_ang[3];
+
+    if (buttons & (IN_FORWARD | IN_BACK | IN_MOVELEFT | IN_MOVERIGHT))
+    {
+        if (GetEntProp(client, Prop_Send, "m_iObserverMode") != OBS_MODE_FREEFLY)
+        {
+            int target = GetEntPropEnt(client, Prop_Send, "m_hObserverTarget");
+            if (target <= 0)
+            {
+                return Plugin_Continue;
+            }
+
+            GetClientEyePosition(target, target_pos);
+            GetClientEyeAngles(client, final_ang);
+            float offset[3];
+            offset[0] = -FREEFLY_CAMERA_DISTANCE_FROM_TARGET - 0.1;
+            Transpose(target_pos, final_ang, offset);
+
+            DataPack data = new DataPack();
+            data.WriteCell(GetClientUserId(client));
+            data.WriteFloat(target_pos[0]);
+            data.WriteFloat(target_pos[1]);
+            data.WriteFloat(target_pos[2]);
+            data.WriteFloat(final_ang[0]);
+            data.WriteFloat(final_ang[1]);
+            data.WriteFloat(final_ang[2]);
+
+            SetEntProp(client, Prop_Send, "m_iObserverMode", OBS_MODE_FREEFLY);
+            RequestFrame(Frame_EyePosFix, data);
+            return Plugin_Continue;
+        }
+    }
 
     // If player is doing a manual mouse2 spectator change ("spec_prev").
     // Spectator won't emit IN_ATTACK bits for "spec_next",
@@ -1167,6 +1223,36 @@ int mod(int a, int b)
 {
     int r = a % b;
     return r < 0 ? r + (b < 0 ? -b : b) : r;
+}
+
+void Transpose(float mut_pos[3], const float ang[3], const float offset[3])
+{
+    float sp, sy, sr, cp, cy, cr;
+    GetSinCos(ang[0], sp, cp);
+    GetSinCos(ang[1], sy, cy);
+    GetSinCos(ang[2], sr, cr);
+
+    float crcy = cr * cy;
+    float crsy = cr * sy;
+    float srcy = sr * cy;
+    float srsy = sr * sy;
+
+    float matrix[3][3];
+    matrix[0][0] = cp * cy;
+    matrix[1][0] = cp * sy;
+    matrix[2][0] = -sp;
+
+    matrix[0][1] = sp * srcy - crsy;
+    matrix[1][1] = sp * srsy + crcy;
+    matrix[2][1] = sr * cp;
+
+    matrix[0][2] = sp * crcy + srsy;
+    matrix[1][2] = sp * crsy - srcy;
+    matrix[2][2] = cr * cp;
+
+    mut_pos[0] += GetVectorDotProduct(offset, matrix[0]);
+    mut_pos[1] += GetVectorDotProduct(offset, matrix[1]);
+    mut_pos[2] += GetVectorDotProduct(offset, matrix[2]);
 }
 
 void GetFreeflyCameraPosBehindPlayer_Vec(const float camera_ang[3], float out_camera_pos[3])
