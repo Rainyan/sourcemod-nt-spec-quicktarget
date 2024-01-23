@@ -418,7 +418,7 @@ public void OnClientDisconnected(int client)
     _client_wants_camera_run[client] = false;
 
     _prev_consumed_buttons[client] = 0;
-    _client_wants_vertical[client]= 0;
+    _client_wants_vertical[client] = 0;
 }
 
 public void OnEntityCreated(int entity, const char[] classname)
