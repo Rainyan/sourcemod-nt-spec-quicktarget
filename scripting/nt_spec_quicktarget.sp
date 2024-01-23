@@ -51,6 +51,7 @@ static float _ghost_display_location[3];
 static int _prev_consumed_buttons[NEO_MAX_PLAYERS + 1];
 
 ConVar g_hCvar_LerpSpeed = null;
+//ConVar g_hCvar_SpecSpeed = null;
 
 Handle _cookie_AutoSpecGhostSpawn = INVALID_HANDLE;
 Handle _cookie_NoFadeFromBlackOnAutoSpecGhost = INVALID_HANDLE;
@@ -783,7 +784,28 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
             _pivot_dist[client] = cur_dist;
         }
 
+        if (buttons & IN_FORWARD)
+        {
+            if (_pivot_dist[client] > 256.0)
+            {
+                _pivot_dist[client] -= 512 * GetTickInterval();
+            }
+            else
+            {
+                vel[0] = 0.0;
+            }
+
+            buttons &= ~IN_FORWARD;
+        }
+        if (buttons & IN_BACK)
+        {
+            _pivot_dist[client] += 512 * GetTickInterval();
+
+            buttons &= ~IN_BACK;
+        }
+
         float delta_dist = cur_dist - _pivot_dist[client];
+        PrintToServer("pd: %f", _pivot_dist[client]);
 
         ScaleVector(look_dir, delta_dist);
         AddVectors(start_pos, look_dir, start_pos);
