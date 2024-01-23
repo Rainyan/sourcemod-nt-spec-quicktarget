@@ -936,31 +936,6 @@ int GetNextClient(int client, bool iterate_backwards = false)
     return target_client;
 }
 
-void Frame_EyePosFix(DataPack data)
-{
-    data.Reset();
-
-    int client = GetClientOfUserId(data.ReadCell());
-    if (client == 0 || !IsClientInGame(client))
-    {
-        delete data;
-        return;
-    }
-
-    float pos[3];
-    float ang[3];
-    pos[0] = data.ReadFloat();
-    pos[1] = data.ReadFloat();
-    pos[2] = data.ReadFloat();
-    ang[0] = data.ReadFloat();
-    ang[1] = data.ReadFloat();
-    ang[2] = data.ReadFloat();
-
-    delete data;
-
-    TeleportEntity(client, pos, ang, NULL_VECTOR);
-}
-
 void CancelCameraRun(int client)
 {
     if (GetEntProp(client, Prop_Send, "m_iObserverMode") != OBS_MODE_FREEFLY)
@@ -1091,7 +1066,7 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
         }
 
         float delta_dist = cur_dist - _pivot_dist[client];
-        PrintToServer("pd: %f", _pivot_dist[client]);
+        //PrintToServer("pd: %f", _pivot_dist[client]);
 
         ScaleVector(look_dir, delta_dist);
         AddVectors(start_pos, look_dir, start_pos);
@@ -1123,17 +1098,9 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
             offset[0] = -FREEFLY_CAMERA_DISTANCE_FROM_TARGET - 0.1;
             Transpose(target_pos, final_ang, offset);
 
-            DataPack data = new DataPack();
-            data.WriteCell(GetClientUserId(client));
-            data.WriteFloat(target_pos[0]);
-            data.WriteFloat(target_pos[1]);
-            data.WriteFloat(target_pos[2]);
-            data.WriteFloat(final_ang[0]);
-            data.WriteFloat(final_ang[1]);
-            data.WriteFloat(final_ang[2]);
-
             SetEntProp(client, Prop_Send, "m_iObserverMode", OBS_MODE_FREEFLY);
-            RequestFrame(Frame_EyePosFix, data);
+            TeleportEntity(client, target_pos, final_ang, NULL_VECTOR);
+
             return Plugin_Continue;
         }
     }
