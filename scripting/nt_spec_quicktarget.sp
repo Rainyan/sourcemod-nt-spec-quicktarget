@@ -51,6 +51,7 @@ static float _ghost_display_location[3];
 static int _prev_consumed_buttons[NEO_MAX_PLAYERS + 1];
 
 ConVar g_hCvar_LerpSpeed = null;
+ConVar g_hCvar_SpecSpeed = null;
 
 Handle _cookie_AutoSpecGhostSpawn = INVALID_HANDLE;
 Handle _cookie_NoFadeFromBlackOnAutoSpecGhost = INVALID_HANDLE;
@@ -61,6 +62,8 @@ static bool _client_wants_no_fade_for_autospec_ghost_spawn[NEO_MAX_PLAYERS + 1];
 static bool _client_wants_auto_rotate[NEO_MAX_PLAYERS + 1];
 static bool _client_wants_latch_to_closest[NEO_MAX_PLAYERS + 1];
 static bool _client_wants_latch_to_fastest[NEO_MAX_PLAYERS + 1];
+
+static int _client_wants_vertical[NEO_MAX_PLAYERS + 1];
 
 public Plugin myinfo = {
     name = "NT Spectator Quick Target",
@@ -100,6 +103,7 @@ public void OnPluginStart()
 
     // TODO: convert into cookie
     g_hCvar_LerpSpeed = CreateConVar("sm_spec_lerp_speed", "2.0", "How fast to lerp the spectating event switch.", _, true, 0.001, true, 10.0);
+    g_hCvar_SpecSpeed = FindConVar("sv_specspeed");
 
     if (!HookEventEx("player_death", Event_PlayerDeath, EventHookMode_Post))
     {
@@ -121,7 +125,24 @@ public void OnPluginStart()
     // Spectator team consumes IN_ATTACK bits when triggering spec_next, so need to set up a command listener, instead of capturing the buttons.
     if (!AddCommandListener(CommandListener_SpecNext, "spec_next"))
     {
-        SetFailState("Failed to set command listener for spec_next");
+        SetFailState("Failed to set command listener");
+    }
+
+    if (!AddCommandListener(CommandListener_UpOn, "+up"))
+    {
+        SetFailState("Failed to set command listener");
+    }
+    if (!AddCommandListener(CommandListener_UpOff, "-up"))
+    {
+        SetFailState("Failed to set command listener");
+    }
+    if (!AddCommandListener(CommandListener_UpOff, "+down"))
+    {
+        SetFailState("Failed to set command listener");
+    }
+    if (!AddCommandListener(CommandListener_UpOn, "-down"))
+    {
+        SetFailState("Failed to set command listener");
     }
 
     _cookie_AutoSpecGhostSpawn = RegClientCookie("spec_newround_ghost",
@@ -173,6 +194,18 @@ public Action CommandListener_SpecNext(int client, const char[] command, int arg
     }
 
     return Plugin_Continue;
+}
+
+public Action CommandListener_UpOn(int client, const char[] command, int argc)
+{
+    _client_wants_vertical[client] += 1;
+    return Plugin_Handled;
+}
+
+public Action CommandListener_UpOff(int client, const char[] command, int argc)
+{
+    _client_wants_vertical[client] -= 1;
+    return Plugin_Handled;
 }
 
 public Action Cmd_Cookies(int client, int argc)
@@ -371,6 +404,7 @@ public void OnClientDisconnected(int client)
     _client_wants_latch_to_fastest[client] = false;
 
     _prev_consumed_buttons[client] = 0;
+    _client_wants_vertical[client]= 0;
 }
 
 public void OnEntityCreated(int entity, const char[] classname)
@@ -718,6 +752,46 @@ int GetNextClient(int client, bool iterate_backwards = false)
         }
     }
     return target_client;
+}
+
+void ApplyAbsVelocityImpulse(int entity, const float impulse[3])
+{
+    static Handle call = INVALID_HANDLE;
+    if (call == INVALID_HANDLE)
+    {
+        char sig[] = "\xD9\x05\x2A\x2A\x2A\x2A\x83\xEC\x0C\x56\x57\x8B\x7C\x24\x18\xD9\x07\x8B\xF1\xDA\xE9\xDF\xE0\xF6\xC4\x44\x7A\x2A\xD9\x05\x2A\x2A\x2A\x2A\xD9\x47\x04\xDA\xE9\xDF\xE0\xF6\xC4\x44\x7A\x2A\xD9\x05\x2A\x2A\x2A\x2A\xD9\x47\x08\xDA\xE9\xDF\xE0\xF6\xC4\x44\x7B\x2A\x80\xBE\xDE\x00\x00\x00\x06\x75\x2A\x8B\x8E\xF8\x01\x00\x00\x8B\x01\x8B\x90\xB0\x00\x00\x00";
+        StartPrepSDKCall(SDKCall_Entity);
+        PrepSDKCall_SetSignature(SDKLibrary_Server, sig, sizeof(sig) - 1);
+        PrepSDKCall_AddParameter(SDKType_Vector, SDKPass_ByRef);
+        call = EndPrepSDKCall();
+        if (call == INVALID_HANDLE)
+        {
+            SetFailState("Failed to prepare SDK call");
+        }
+    }
+    SDKCall(call, entity, impulse);
+}
+
+public void OnGameFrame()
+{
+    float impulse[3];
+    for (int client = 1; client <= MaxClients; ++client)
+    {
+        if (!_is_spectator[client])
+        {
+            continue;
+        }
+
+        if (_client_wants_vertical[client])
+        {
+            float scale = g_hCvar_SpecSpeed.FloatValue / 3.0;
+            float base = 901.81 * 1.5;
+
+            impulse[2] = scale * _client_wants_vertical[client] * base *
+                GetGameFrameTime();
+            ApplyAbsVelocityImpulse(client, impulse);
+        }
+    }
 }
 
 public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3],
