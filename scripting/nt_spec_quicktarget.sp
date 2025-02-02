@@ -1548,7 +1548,7 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
 
 // For floats a and b, return whether they are equal within max_ulps
 // units in the last place. If max_ulps equals 0, they must exactly equal.
-stock bool FloatEqual(const float a, const float b, const float max_ulps = 0.0)
+bool FloatEqual(const float a, const float b, const float max_ulps = 0.0)
 {
     if (max_ulps == 0)
     {
@@ -1557,27 +1557,27 @@ stock bool FloatEqual(const float a, const float b, const float max_ulps = 0.0)
     return FloatAbs(a - b) <= max_ulps;
 }
 
-stock bool VectorsExactlyEqual(const float v1[3], const float v2[3])
+bool VectorsExactlyEqual(const float v1[3], const float v2[3])
 {
     return v1[0] == v2[0] && v1[1] == v2[1] && v1[2] == v2[2];
 }
 
-stock any Clamp(any value, any min, any max)
+any Clamp(any value, any min, any max)
 {
     return value < min ? min : value > max ? max : value;
 }
 
-stock any Max(any a, any b)
+any Max(any a, any b)
 {
     return a > b ? a : b;
 }
 
-stock any Min(any a, any b)
+any Min(any a, any b)
 {
     return a < b ? a : b;
 }
 
-stock float Lerp(float a, float b, float scale)
+float Lerp(float a, float b, float scale)
 {
 #if(0)
     scale = Clamp(scale, -1.0, 1.0);
@@ -1585,14 +1585,14 @@ stock float Lerp(float a, float b, float scale)
     return a + (b - a) * GetGameFrameTime() * scale;
 }
 
-stock void VectorLerp(const float v1[3], const float v2[3], float res[3], const float scale)
+void VectorLerp(const float v1[3], const float v2[3], float res[3], const float scale)
 {
     res[0] = Lerp(v1[0], v2[0], scale);
     res[1] = Lerp(v1[1], v2[1], scale);
     res[2] = Lerp(v1[2], v2[2], scale);
 }
 
-stock void LerpAngles(const float a[3], const float b[3], float res[3], const float t)
+void LerpAngles(const float a[3], const float b[3], float res[3], const float t)
 {
     res[0] = LerpAngle(a[0], b[0], t);
     res[1] = LerpAngle(a[1], b[1], t);
@@ -1600,7 +1600,7 @@ stock void LerpAngles(const float a[3], const float b[3], float res[3], const fl
 }
 
 // Lerp that takes the shortest rotation around a circle
-stock float LerpAngle(const float a, const float b, const float t)
+float LerpAngle(const float a, const float b, const float t)
 {
     float dt = Clamp((b - a) - RoundToFloor((b - a) / 360.0) * 360.0, 0.0, 360.0);
     return Lerp(a, a + (dt > 180.0 ? dt - 360.0 : dt), t);
@@ -1659,7 +1659,7 @@ void GetFreeflyCameraPosBehindPlayer(int client, const float camera_ang[3], floa
     GetFreeflyCameraPosBehindPlayer_Vec(camera_ang, out_camera_pos);
 }
 
-stock void GetSinCos(const float degrees, float& sine, float& cosine)
+void GetSinCos(const float degrees, float& sine, float& cosine)
 {
     float radians = DegToRad(degrees);
     sine = Sine(radians);
