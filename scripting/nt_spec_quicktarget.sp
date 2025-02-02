@@ -1005,7 +1005,8 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
     float start_pos[3];
     float start_ang[3];
 
-    bool orbit = (buttons & IN_THERMOPTIC) ? true : false;
+    bool orbit = (buttons & IN_THERMOPTIC != 0)
+        && (GetEntProp(client, Prop_Send, "m_iObserverMode") == OBS_MODE_FREEFLY);
     if (orbit)
     {
         GetClientEyePosition(client, start_pos);
