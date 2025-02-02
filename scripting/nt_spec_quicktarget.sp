@@ -1043,7 +1043,8 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
         float cur_dist = GetVectorDistance(start_pos, _orbit_pivot[client], false);
         if (new_orbit)
         {
-            _pivot_dist[client] = cur_dist;
+#define MIN_ORBIT_DIST 64.0
+            _pivot_dist[client] = Max(cur_dist, MIN_ORBIT_DIST);
         }
 
         if (buttons & IN_FORWARD)
