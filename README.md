@@ -60,6 +60,7 @@ These commands are recommended to be used as binds. They only work for players i
 * `+down` — Move camera down.
 * Regular movement keys — Will automatically unlatch to free-fly mode, if currently latched onto a player.
   * Convenient for not needing to press spacebar to leave a player when transitioning to free-fly mode.
+* Sprint key + Attack — Shortcut for `sm_spec_latch_to_aim`
 
 ## Cvars
 **TODO: turn these into cookies**
