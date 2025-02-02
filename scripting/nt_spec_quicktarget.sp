@@ -1038,6 +1038,12 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
         return Plugin_Continue;
     }
 
+    bool held_thermoptic = buttons & IN_THERMOPTIC != 0;
+    if (held_thermoptic)
+    {
+        buttons &= ~IN_THERMOPTIC;
+    }
+
     if (buttons & IN_AIM)
     {
         if (GetEntProp(client, Prop_Data, "m_afButtonPressed") & IN_AIM)
@@ -1050,8 +1056,8 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
     float start_pos[3];
     float start_ang[3];
 
-    bool orbit = (buttons & IN_THERMOPTIC != 0)
-        && (GetEntProp(client, Prop_Send, "m_iObserverMode") == OBS_MODE_FREEFLY);
+    bool orbit = held_thermoptic &&
+        GetEntProp(client, Prop_Send, "m_iObserverMode") == OBS_MODE_FREEFLY;
     if (orbit)
     {
         GetClientEyePosition(client, start_pos);
