@@ -224,14 +224,14 @@ public Action CommandListener_SpecCycle(int client, const char[] command, int ar
 
 public Action CommandListener_UpOn(int client, const char[] command, int argc)
 {
-    _client_wants_vertical[client] += 1;
-    return Plugin_Handled;
+    ++_client_wants_vertical[client];
+    return Plugin_Continue;
 }
 
 public Action CommandListener_UpOff(int client, const char[] command, int argc)
 {
-    _client_wants_vertical[client] -= 1;
-    return Plugin_Handled;
+    --_client_wants_vertical[client];
+    return Plugin_Continue;
 }
 
 public Action OnCookies(int client, const char[] command, int argc)
