@@ -9,7 +9,7 @@
 
 //#include "sp_shims.inc" // old compat shims, not required for currently supported SM range
 
-#define PLUGIN_VERSION "1.1.3"
+#define PLUGIN_VERSION "2.0.0"
 
 #define OBS_MODE_FOLLOW 4
 #define OBS_MODE_FREEFLY 5
@@ -21,6 +21,7 @@
 
 // This is the distance from player the spectator camera is at when following them.
 #define FREEFLY_CAMERA_DISTANCE_FROM_TARGET 100.0
+#define DEFAULT_LERP_SCALE 2.0
 
 #define PLUGIN_TAG "[SPEC]"
 
@@ -48,18 +49,20 @@ static int _last_ghost;
 static bool _is_currently_displaying_ghost_location;
 static float _ghost_display_location[3];
 
-ConVar g_hCvar_LerpSpeed = null;
 ConVar g_hCvar_SpecSpeed = null;
 
 Handle _cookie_AutoSpecGhostSpawn = INVALID_HANDLE;
 Handle _cookie_NoFadeFromBlackOnAutoSpecGhost = INVALID_HANDLE;
 Handle _cookie_AutoRotate = INVALID_HANDLE;
+Handle _cookie_LerpScale = INVALID_HANDLE;
 
 static bool _client_wants_autospec_ghost_spawn[NEO_MAXPLAYERS + 1];
 static bool _client_wants_no_fade_for_autospec_ghost_spawn[NEO_MAXPLAYERS + 1];
 static bool _client_wants_auto_rotate[NEO_MAXPLAYERS + 1];
 static bool _client_wants_latch_to_closest[NEO_MAXPLAYERS + 1];
 static bool _client_wants_latch_to_fastest[NEO_MAXPLAYERS + 1];
+
+static float _client_lerp_scale[NEO_MAXPLAYERS + 1] = { DEFAULT_LERP_SCALE, ... };
 
 static bool _client_wants_orbit[NEO_MAXPLAYERS + 1];
 static float _orbit_pivot[NEO_MAXPLAYERS + 1][3];
@@ -111,8 +114,6 @@ public void OnPluginStart()
 
     CreateConVar("sm_spec_quicktarget_version", PLUGIN_VERSION, "NT Spectator Quick Target plugin version.", FCVAR_DONTRECORD);
 
-    // TODO: convert into cookie
-    g_hCvar_LerpSpeed = CreateConVar("sm_spec_lerp_speed", "2.0", "How fast to lerp the spectating event switch.", _, true, 0.001, true, 10.0);
     g_hCvar_SpecSpeed = FindConVar("sv_specspeed");
 
     if (!HookEventEx("player_death", Event_PlayerDeath, EventHookMode_Post))
@@ -167,6 +168,9 @@ public void OnPluginStart()
         CookieAccess_Public);
     _cookie_AutoRotate = RegClientCookie("spec_autorotate",
         "NT Spectator Quick Target plugin: Automatically rotate according to spectator direction.",
+        CookieAccess_Public);
+    _cookie_LerpScale = RegClientCookie("spec_lerp_scale",
+        "NT Spectator Quick Target plugin: Lerp scale.",
         CookieAccess_Public);
 
     for (int client = 1; client <= MaxClients; ++client)
@@ -415,14 +419,17 @@ public void OnClientCookiesCached(int client)
     char wants_ghost_spawn_spec[2];
     char wants_no_fade[2];
     char wants_auto_rotate[2];
+    char lerp_scale[4];
 
     GetClientCookie(client, _cookie_AutoSpecGhostSpawn, wants_ghost_spawn_spec, sizeof(wants_ghost_spawn_spec));
     GetClientCookie(client, _cookie_NoFadeFromBlackOnAutoSpecGhost, wants_no_fade, sizeof(wants_no_fade));
     GetClientCookie(client, _cookie_AutoRotate, wants_auto_rotate, sizeof(wants_auto_rotate));
+    GetClientCookie(client, _cookie_LerpScale, lerp_scale, sizeof(lerp_scale));
 
     _client_wants_autospec_ghost_spawn[client] = (wants_ghost_spawn_spec[0] != 0 && wants_ghost_spawn_spec[0] != '0');
     _client_wants_no_fade_for_autospec_ghost_spawn[client] = (wants_no_fade[0] != 0 && wants_no_fade[0] != '0');
     _client_wants_auto_rotate[client] = (wants_auto_rotate[0] != 0 && wants_auto_rotate[0] != '0');
+    _client_lerp_scale[client] = Min(10.0, Max(0.001, StringToFloat(lerp_scale)));
 }
 
 public void OnClientDisconnected(int client)
@@ -436,6 +443,7 @@ public void OnClientDisconnected(int client)
     _client_wants_autospec_ghost_spawn[client] = false;
     _client_wants_no_fade_for_autospec_ghost_spawn[client] = false;
     _client_wants_auto_rotate[client] = false;
+    _client_lerp_scale[client] = DEFAULT_LERP_SCALE;
     _client_wants_latch_to_closest[client] = false;
     _client_wants_latch_to_fastest[client] = false;
     _client_wants_orbit[client] = false;
@@ -1190,7 +1198,7 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
         NormalizeVector(target_dir, target_dir);
         GetVectorAngles(target_dir, target_ang);
         GetClientEyeAngles(client, start_ang);
-        LerpAngles(start_ang, target_ang, final_ang);
+        LerpAngles(start_ang, target_ang, final_ang, _client_lerp_scale[client]);
 
         TeleportEntity(client, _ghost_display_location, final_ang, NULL_VECTOR);
 
@@ -1386,7 +1394,7 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
         SubtractVectors(target_pos, start_pos, target_dir);
         NormalizeVector(target_dir, target_dir);
         GetVectorAngles(target_dir, target_ang);
-        LerpAngles(start_ang, target_ang, final_ang);
+        LerpAngles(start_ang, target_ang, final_ang, _client_lerp_scale[client]);
 
         if (GetVectorDistance(final_pos, target_pos, true) > Pow(FREEFLY_CAMERA_DISTANCE_FROM_TARGET + 0.1, 2.0))
         {
@@ -1460,8 +1468,8 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
             GetVectorAngles(target_dir, target_ang);
         }
 
-        VectorLerp(start_pos, target_pos, final_pos);
-        LerpAngles(start_ang, target_ang, final_ang);
+        VectorLerp(start_pos, target_pos, final_pos, _client_lerp_scale[client]);
+        LerpAngles(start_ang, target_ang, final_ang, _client_lerp_scale[client]);
 
         bool reached_target_distance;
 
@@ -1561,26 +1569,27 @@ stock any Max(any a, any b)
     return a > b ? a : b;
 }
 
-stock float Lerp(float a, float b, float scale = 0.0)
+stock any Min(any a, any b)
 {
-    if (scale == 0)
-    {
-        scale = GetGameFrameTime() * g_hCvar_LerpSpeed.FloatValue;
-    }
+    return a < b ? a : b;
+}
+
+stock float Lerp(float a, float b, float scale)
+{
 #if(0)
     scale = Clamp(scale, -1.0, 1.0);
 #endif
-    return a + (b - a) * scale;
+    return a + (b - a) * GetGameFrameTime() * scale;
 }
 
-stock void VectorLerp(const float v1[3], const float v2[3], float res[3], const float scale = 0.0)
+stock void VectorLerp(const float v1[3], const float v2[3], float res[3], const float scale)
 {
     res[0] = Lerp(v1[0], v2[0], scale);
     res[1] = Lerp(v1[1], v2[1], scale);
     res[2] = Lerp(v1[2], v2[2], scale);
 }
 
-stock void LerpAngles(const float a[3], const float b[3], float res[3], const float t = 0.0)
+stock void LerpAngles(const float a[3], const float b[3], float res[3], const float t)
 {
     res[0] = LerpAngle(a[0], b[0], t);
     res[1] = LerpAngle(a[1], b[1], t);
@@ -1588,7 +1597,7 @@ stock void LerpAngles(const float a[3], const float b[3], float res[3], const fl
 }
 
 // Lerp that takes the shortest rotation around a circle
-stock float LerpAngle(const float a, const float b, const float t = 0.0)
+stock float LerpAngle(const float a, const float b, const float t)
 {
     float dt = Clamp((b - a) - RoundToFloor((b - a) / 360.0) * 360.0, 0.0, 360.0);
     return Lerp(a, a + (dt > 180.0 ? dt - 360.0 : dt), t);
