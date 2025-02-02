@@ -55,6 +55,7 @@ These commands are recommended to be used as binds. They only work for players i
 ## Binds
 * `+thermoptic` — Camera orbit.
   * Allows orbiting the camera around the center of the current view in third-person mode.
+  * The smoothness of this relies on your ping to the server; if you have high ping, doing a slow orbit may look nicer than a fast one.
 * `+up` — Move camera up.
 * `+down` — Move camera down.
 
