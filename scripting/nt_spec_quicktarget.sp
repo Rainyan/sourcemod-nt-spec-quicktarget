@@ -1,5 +1,3 @@
-#pragma semicolon 1
-
 #include <sourcemod>
 #include <sdkhooks>
 #include <sdktools>
@@ -7,73 +5,72 @@
 
 #include <neotokyo>
 
-//#include "sp_shims.inc" // old compat shims, not required for currently supported SM range
+#pragma semicolon 1
+#pragma newdecls required
 
-#define PLUGIN_VERSION "2.0.0"
-
-#define OBS_MODE_FOLLOW 4
-#define OBS_MODE_FREEFLY 5
+#define PLUGIN_VERSION "2.0.1"
 
 // This plugin relies on the nt_ghostcap plugin for detecting ghost events.
 // If for whatever reason you don't want to run that plugin, comment out this define
 // to remove support for ghost related spectating events detection.
 #define REQUIRE_NT_GHOSTCAP_PLUGIN
 
-// This is the distance from player the spectator camera is at when following them.
-#define FREEFLY_CAMERA_DISTANCE_FROM_TARGET 100.0
-#define DEFAULT_LERP_SCALE 2.0
-
 #define PLUGIN_TAG "[SPEC]"
 
-//#define DEBUG
+//#define DEBUG // Don't enable this for release
 
-static int _spec_userid_target[NEO_MAXPLAYERS + 1];
-static bool _is_lerping_specview[NEO_MAXPLAYERS + 1];
-static bool _is_following_grenade[NEO_MAXPLAYERS + 1];
-static int _follow_explosive[NEO_MAXPLAYERS + 1];
-// Doing this check ahead of time to avoid having to do it for every frame.
-static bool _is_spectator[NEO_MAXPLAYERS + 1];
+#define OBS_MODE_FOLLOW 4
+#define OBS_MODE_FREEFLY 5
 
-static int _last_attacker_userid;
-static int _last_killer_userid;
+// This is the distance from player the spectator camera is at when following them.
+#define FREEFLY_CAMERA_DISTANCE_FROM_TARGET 100.0
+
+#define DEFAULT_LERP_SCALE 2.0
+
+static int _spec_userid_target[NEO_MAXPLAYERS + 1],
+    _follow_explosive[NEO_MAXPLAYERS + 1],
+    _client_wants_vertical[NEO_MAXPLAYERS + 1]; // sic: This is tallied up to negative, positive, or zero for bool evaluation.
+
+static bool _is_lerping_specview[NEO_MAXPLAYERS + 1],
+    _is_following_grenade[NEO_MAXPLAYERS + 1],
+    _is_spectator[NEO_MAXPLAYERS + 1]; // Doing this check ahead of time to avoid having to do it for every frame.
+
+static int _last_attacker_userid,
+    _last_killer_userid,
+    _last_event_userid_generic,
+    _last_hurt_userid,
+    _last_shooter_userid,
+    _last_live_grenade,
+    _last_ghost;
 #if defined REQUIRE_NT_GHOSTCAP_PLUGIN
 static int _last_ghost_carrier_userid;
 #endif
-static int _last_event_userid_generic;
-static int _last_hurt_userid;
-static int _last_shooter_userid;
 
-static int _last_live_grenade;
-
-static int _last_ghost;
 static bool _is_currently_displaying_ghost_location;
 static float _ghost_display_location[3];
 
 ConVar g_hCvar_SpecSpeed = null;
 
-Handle _cookie_AutoSpecGhostSpawn = INVALID_HANDLE;
-Handle _cookie_NoFadeFromBlackOnAutoSpecGhost = INVALID_HANDLE;
-Handle _cookie_AutoRotate = INVALID_HANDLE;
-Handle _cookie_LerpScale = INVALID_HANDLE;
+Handle _cookie_AutoSpecGhostSpawn = INVALID_HANDLE,
+    _cookie_NoFadeFromBlackOnAutoSpecGhost = INVALID_HANDLE,
+    _cookie_AutoRotate = INVALID_HANDLE,
+    _cookie_LerpScale = INVALID_HANDLE;
 
-static bool _client_wants_autospec_ghost_spawn[NEO_MAXPLAYERS + 1];
-static bool _client_wants_no_fade_for_autospec_ghost_spawn[NEO_MAXPLAYERS + 1];
-static bool _client_wants_auto_rotate[NEO_MAXPLAYERS + 1];
-static bool _client_wants_latch_to_closest[NEO_MAXPLAYERS + 1];
-static bool _client_wants_latch_to_fastest[NEO_MAXPLAYERS + 1];
+static bool _client_wants_autospec_ghost_spawn[NEO_MAXPLAYERS + 1],
+    _client_wants_no_fade_for_autospec_ghost_spawn[NEO_MAXPLAYERS + 1],
+    _client_wants_auto_rotate[NEO_MAXPLAYERS + 1],
+    _client_wants_latch_to_closest[NEO_MAXPLAYERS + 1],
+    _client_wants_latch_to_fastest[NEO_MAXPLAYERS + 1],
+    _client_wants_orbit[NEO_MAXPLAYERS + 1],
+    _client_wants_camera_run[NEO_MAXPLAYERS + 1];
 
 static float _client_lerp_scale[NEO_MAXPLAYERS + 1] = { DEFAULT_LERP_SCALE, ... };
-
-static bool _client_wants_orbit[NEO_MAXPLAYERS + 1];
-static float _orbit_pivot[NEO_MAXPLAYERS + 1][3];
 static float _pivot_dist[NEO_MAXPLAYERS + 1];
-static float _prev_look_dir[NEO_MAXPLAYERS + 1][3];
 
-static bool _client_wants_camera_run[NEO_MAXPLAYERS + 1];
-static float _camera_run_location[NEO_MAXPLAYERS + 1][3];
-static float _camera_run_angles[NEO_MAXPLAYERS + 1][3];
-
-static int _client_wants_vertical[NEO_MAXPLAYERS + 1];
+static float _orbit_pivot[NEO_MAXPLAYERS + 1][3],
+    _prev_look_dir[NEO_MAXPLAYERS + 1][3],
+    _camera_run_location[NEO_MAXPLAYERS + 1][3],
+    _camera_run_angles[NEO_MAXPLAYERS + 1][3];
 
 public Plugin myinfo = {
     name = "NT Spectator Quick Target",
@@ -160,18 +157,19 @@ public void OnPluginStart()
         SetFailState("Failed to set command listener");
     }
 
+    CookieAccess access = CookieAccess_Public;
     _cookie_AutoSpecGhostSpawn = RegClientCookie("spec_newround_ghost",
         "NT Spectator Quick Target plugin: Whether to automatically spectate the ghost spawn position on new rounds.",
-        CookieAccess_Public);
+        access);
     _cookie_NoFadeFromBlackOnAutoSpecGhost = RegClientCookie("spec_newround_ghost_no_fade",
         "NT Spectator Quick Target plugin: Whether to disable the fade-from-black effect when speccing a ghost spawn.",
-        CookieAccess_Public);
+        access);
     _cookie_AutoRotate = RegClientCookie("spec_autorotate",
         "NT Spectator Quick Target plugin: Automatically rotate according to spectator direction.",
-        CookieAccess_Public);
+        access);
     _cookie_LerpScale = RegClientCookie("spec_lerp_scale",
         "NT Spectator Quick Target plugin: Lerp scale.",
-        CookieAccess_Public);
+        access);
 
     for (int client = 1; client <= MaxClients; ++client)
     {
@@ -367,8 +365,7 @@ void SetClientSpectateTarget(int client, int target)
     bool is_freefly = GetEntProp(client, Prop_Send, "m_iObserverMode") == OBS_MODE_FREEFLY;
     bool rotate = is_freefly || _client_wants_auto_rotate[client];
 
-    float pos[3];
-    float ang[3];
+    float pos[3], ang[3];
 
     if (rotate)
     {
@@ -395,8 +392,7 @@ void SetClientSpectateProxyTarget(int client, int proxy)
 {
     int obs_mode = GetEntProp(proxy, Prop_Send, "m_iObserverMode");
 
-    float pos[3];
-    float ang[3];
+    float pos[3], ang[3];
 
     GetClientEyePosition(proxy, pos);
     GetClientEyeAngles(proxy, ang);
@@ -416,10 +412,10 @@ void SetClientSpectateProxyTarget(int client, int proxy)
 
 public void OnClientCookiesCached(int client)
 {
-    char wants_ghost_spawn_spec[2];
-    char wants_no_fade[2];
-    char wants_auto_rotate[2];
-    char lerp_scale[4];
+    char wants_ghost_spawn_spec[2],
+        wants_no_fade[2],
+        wants_auto_rotate[2],
+        lerp_scale[4];
 
     GetClientCookie(client, _cookie_AutoSpecGhostSpawn, wants_ghost_spawn_spec, sizeof(wants_ghost_spawn_spec));
     GetClientCookie(client, _cookie_NoFadeFromBlackOnAutoSpecGhost, wants_no_fade, sizeof(wants_no_fade));
@@ -435,19 +431,21 @@ public void OnClientCookiesCached(int client)
 public void OnClientDisconnected(int client)
 {
     _spec_userid_target[client] = 0;
+    _follow_explosive[client] = 0;
+
     _is_lerping_specview[client] = false;
     _is_spectator[client] = false;
     _is_following_grenade[client] = false;
-    _follow_explosive[client] = 0;
 
     _client_wants_autospec_ghost_spawn[client] = false;
     _client_wants_no_fade_for_autospec_ghost_spawn[client] = false;
     _client_wants_auto_rotate[client] = false;
-    _client_lerp_scale[client] = DEFAULT_LERP_SCALE;
     _client_wants_latch_to_closest[client] = false;
     _client_wants_latch_to_fastest[client] = false;
     _client_wants_orbit[client] = false;
     _client_wants_camera_run[client] = false;
+
+    _client_lerp_scale[client] = DEFAULT_LERP_SCALE;
 
     _client_wants_vertical[client] = 0;
 }
@@ -537,8 +535,7 @@ public void Event_PlayerTeam(Event event, const char[] name,
 
 static Handle g_hTimer_FinishDisplayGhostSpawnLocation = INVALID_HANDLE;
 
-public void Event_RoundStart(Event event, const char[] name,
-    bool dontBroadcast)
+public void Event_RoundStart(Event event, const char[] name, bool dontBroadcast)
 {
     _last_live_grenade = 0;
     for (int i = 1; i <= MaxClients; ++i)
