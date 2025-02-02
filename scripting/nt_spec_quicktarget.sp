@@ -9,9 +9,7 @@
 
 //#include "sp_shims.inc" // old compat shims, not required for currently supported SM range
 
-#define PLUGIN_VERSION "1.1.1"
-
-#define NEO_MAX_PLAYERS 32
+#define PLUGIN_VERSION "1.1.2"
 
 #define OBS_MODE_FOLLOW 4
 #define OBS_MODE_FREEFLY 5
@@ -26,12 +24,12 @@
 
 //#define DEBUG
 
-static int _spec_userid_target[NEO_MAX_PLAYERS + 1];
-static bool _is_lerping_specview[NEO_MAX_PLAYERS + 1];
-static bool _is_following_grenade[NEO_MAX_PLAYERS + 1];
-static int _follow_explosive[NEO_MAX_PLAYERS + 1];
+static int _spec_userid_target[NEO_MAXPLAYERS + 1];
+static bool _is_lerping_specview[NEO_MAXPLAYERS + 1];
+static bool _is_following_grenade[NEO_MAXPLAYERS + 1];
+static int _follow_explosive[NEO_MAXPLAYERS + 1];
 // Doing this check ahead of time to avoid having to do it for every frame.
-static bool _is_spectator[NEO_MAX_PLAYERS + 1];
+static bool _is_spectator[NEO_MAXPLAYERS + 1];
 
 static int _last_attacker_userid;
 static int _last_killer_userid;
@@ -48,8 +46,6 @@ static int _last_ghost;
 static bool _is_currently_displaying_ghost_location;
 static float _ghost_display_location[3];
 
-static int _prev_consumed_buttons[NEO_MAX_PLAYERS + 1];
-
 ConVar g_hCvar_LerpSpeed = null;
 ConVar g_hCvar_SpecSpeed = null;
 
@@ -57,22 +53,22 @@ Handle _cookie_AutoSpecGhostSpawn = INVALID_HANDLE;
 Handle _cookie_NoFadeFromBlackOnAutoSpecGhost = INVALID_HANDLE;
 Handle _cookie_AutoRotate = INVALID_HANDLE;
 
-static bool _client_wants_autospec_ghost_spawn[NEO_MAX_PLAYERS + 1];
-static bool _client_wants_no_fade_for_autospec_ghost_spawn[NEO_MAX_PLAYERS + 1];
-static bool _client_wants_auto_rotate[NEO_MAX_PLAYERS + 1];
-static bool _client_wants_latch_to_closest[NEO_MAX_PLAYERS + 1];
-static bool _client_wants_latch_to_fastest[NEO_MAX_PLAYERS + 1];
+static bool _client_wants_autospec_ghost_spawn[NEO_MAXPLAYERS + 1];
+static bool _client_wants_no_fade_for_autospec_ghost_spawn[NEO_MAXPLAYERS + 1];
+static bool _client_wants_auto_rotate[NEO_MAXPLAYERS + 1];
+static bool _client_wants_latch_to_closest[NEO_MAXPLAYERS + 1];
+static bool _client_wants_latch_to_fastest[NEO_MAXPLAYERS + 1];
 
-static bool _client_wants_orbit[NEO_MAX_PLAYERS + 1];
-static float _orbit_pivot[NEO_MAX_PLAYERS + 1][3];
-static float _pivot_dist[NEO_MAX_PLAYERS + 1];
-static float _prev_look_dir[NEO_MAX_PLAYERS + 1][3];
+static bool _client_wants_orbit[NEO_MAXPLAYERS + 1];
+static float _orbit_pivot[NEO_MAXPLAYERS + 1][3];
+static float _pivot_dist[NEO_MAXPLAYERS + 1];
+static float _prev_look_dir[NEO_MAXPLAYERS + 1][3];
 
-static bool _client_wants_camera_run[NEO_MAX_PLAYERS + 1];
-static float _camera_run_location[NEO_MAX_PLAYERS + 1][3];
-static float _camera_run_angles[NEO_MAX_PLAYERS + 1][3];
+static bool _client_wants_camera_run[NEO_MAXPLAYERS + 1];
+static float _camera_run_location[NEO_MAXPLAYERS + 1][3];
+static float _camera_run_angles[NEO_MAXPLAYERS + 1][3];
 
-static int _client_wants_vertical[NEO_MAX_PLAYERS + 1];
+static int _client_wants_vertical[NEO_MAXPLAYERS + 1];
 
 public Plugin myinfo = {
     name = "NT Spectator Quick Target",
@@ -135,7 +131,11 @@ public void OnPluginStart()
     }
 
     // Spectator team consumes IN_ATTACK bits when triggering spec_next, so need to set up a command listener, instead of capturing the buttons.
-    if (!AddCommandListener(CommandListener_SpecNext, "spec_next"))
+    if (!AddCommandListener(CommandListener_SpecCycle, "spec_next"))
+    {
+        SetFailState("Failed to set command listener");
+    }
+    if (!AddCommandListener(CommandListener_SpecCycle, "spec_prev"))
     {
         SetFailState("Failed to set command listener");
     }
@@ -181,29 +181,37 @@ public void OnPluginStart()
     AddCommandListener(OnCookies, "sm_cookies");
 }
 
-public Action CommandListener_SpecNext(int client, const char[] command, int argc)
+// Even though the game handles spec_next/spec_prev natively,
+// we call our own implementation here for custom functionality.
+public Action CommandListener_SpecCycle(int client, const char[] command, int argc)
 {
-    // Even though the game handles spec_next natively,
-    // we call our own implementation here to enable custom camera rotation.
-    if (_is_spectator[client])
+    if (!_is_spectator[client])
     {
-        int buttons = GetClientButtons(client);
-
-        if (buttons & IN_SPRINT)
-        {
-            Cmd_LatchToAim(client, 0);
-            return Plugin_Handled;
-        }
-
-        // The "spec_next" cmd will have already modified this,
-        // so we can just use the value as-is.
-        int target = GetEntPropEnt(client, Prop_Send, "m_hObserverTarget");
-        if (target > 0 && target <= MaxClients && IsClientInGame(target))
-        {
-            SetClientSpectateTarget(client, target);
-        }
-        _is_following_grenade[client] = false;
+        return Plugin_Continue;
     }
+
+    int buttons = GetClientButtons(client);
+
+    if (buttons & IN_SPRINT)
+    {
+        Cmd_LatchToAim(client, 0);
+        return Plugin_Handled;
+    }
+
+    int target = GetEntPropEnt(client, Prop_Send, "m_hObserverTarget");
+    bool is_follow = GetEntProp(client, Prop_Send, "m_iObserverMode") == OBS_MODE_FOLLOW;
+    if (is_follow)
+    {
+        bool prev = StrEqual(command, "spec_prev");
+        target = GetNextClient(target, prev);
+    }
+
+    if (target > 0 && target <= MaxClients && IsClientInGame(target))
+    {
+        SetClientSpectateTarget(client, target);
+    }
+
+    _is_following_grenade[client] = false;
 
     return Plugin_Continue;
 }
@@ -224,7 +232,7 @@ public Action OnCookies(int client, const char[] command, int argc)
 {
     if (argc == 2)
     {
-        CreateTimer(3.0, Timer_AfterCookiesChanged, GetClientUserId(client));
+        CreateTimer(0.1, Timer_AfterCookiesChanged, GetClientUserId(client));
     }
     return Plugin_Continue;
 }
@@ -350,8 +358,8 @@ public Action Cmd_SpecCasterSlot(int client, int argc)
 
 void SetClientSpectateTarget(int client, int target)
 {
-    bool rotate = _client_wants_auto_rotate[client] ||
-        (GetEntProp(client, Prop_Send, "m_iObserverMode") == OBS_MODE_FREEFLY);
+    bool is_freefly = GetEntProp(client, Prop_Send, "m_iObserverMode") == OBS_MODE_FREEFLY;
+    bool rotate = is_freefly || _client_wants_auto_rotate[client];
 
     float pos[3];
     float ang[3];
@@ -359,15 +367,20 @@ void SetClientSpectateTarget(int client, int target)
     if (rotate)
     {
         GetClientAbsAngles(target, ang);
-        GetFreeflyCameraPosBehindPlayer(target, ang, pos);
+        if (is_freefly)
+        {
+            GetFreeflyCameraPosBehindPlayer(target, ang, pos);
+            TeleportEntity(client,
+                rotate ? pos : NULL_VECTOR,
+                rotate ? ang : NULL_VECTOR,
+                NULL_VECTOR);
+            SetEntPropEnt(client, Prop_Send, "m_hObserverTarget", target);
+        }
+        else
+        {
+            TeleportEntity(client, NULL_VECTOR, ang, NULL_VECTOR);
+        }
     }
-
-    SetEntPropEnt(client, Prop_Send, "m_hObserverTarget", target);
-
-    TeleportEntity(client,
-        rotate ? pos : NULL_VECTOR,
-        rotate ? ang : NULL_VECTOR,
-        NULL_VECTOR);
 
     _spec_userid_target[client] = 0;
 }
@@ -426,7 +439,6 @@ public void OnClientDisconnected(int client)
     _client_wants_orbit[client] = false;
     _client_wants_camera_run[client] = false;
 
-    _prev_consumed_buttons[client] = 0;
     _client_wants_vertical[client] = 0;
 }
 
@@ -544,7 +556,7 @@ public void Event_RoundStart(Event event, const char[] name,
 
 void FadeSpecs()
 {
-    int specs[NEO_MAX_PLAYERS];
+    int specs[NEO_MAXPLAYERS];
     int num_specs;
 
     for (int client = 1; client <= MaxClients; ++client)
@@ -924,24 +936,27 @@ public Action Cmd_LerpTo(int client, int argc)
 // Returns the inputted client index if no other valid candidates were found.
 int GetNextClient(int client, bool iterate_backwards = false)
 {
-    int target_client = client;
-    int add_num = iterate_backwards ? -1 : 1;
-
-    if (client > 0 && client <= MaxClients && IsClientInGame(client))
+    if (client <= 0 || client > MaxClients || !IsClientInGame(client))
     {
-        for (int iter_client = mod((target_client + add_num), MaxClients);
-            iter_client != client;
-            iter_client = mod((iter_client + add_num), MaxClients))
-        {
-            if (iter_client == 0 || !IsClientInGame(iter_client) ||
-                GetClientTeam(iter_client) <= TEAM_SPECTATOR || !IsPlayerAlive(iter_client))
-            {
-                continue;
-            }
-            target_client = iter_client;
-            break;
-        }
+        return client;
     }
+
+    int target_client = client;
+    int increment = iterate_backwards ? -1 : 1;
+
+    for (int iter_client = mod((target_client + increment), MaxClients);
+        iter_client != client;
+        iter_client = mod((iter_client + increment), MaxClients))
+    {
+        if (iter_client == 0 || !IsClientInGame(iter_client) ||
+            !IsPlayerAlive(iter_client))
+        {
+            continue;
+        }
+        target_client = iter_client;
+        break;
+    }
+
     return target_client;
 }
 
@@ -1009,6 +1024,15 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
             _last_shooter_userid = GetClientUserId(client);
         }
         return Plugin_Continue;
+    }
+
+    if (buttons & IN_AIM)
+    {
+        if (GetEntProp(client, Prop_Data, "m_afButtonPressed") & IN_AIM)
+        {
+            FakeClientCommand(client, "spec_prev");
+            return Plugin_Continue;
+        }
     }
 
     float start_pos[3];
@@ -1115,35 +1139,6 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
             return Plugin_Continue;
         }
     }
-
-    // If player is doing a manual mouse2 spectator change ("spec_prev").
-    // Spectator won't emit IN_ATTACK bits for "spec_next",
-    // so using a command listener for that instead of also capturing it here.
-    if (buttons & IN_AIM)
-    {
-        _is_following_grenade[client] = false;
-
-        if (_prev_consumed_buttons[client] & IN_AIM)
-        {
-            return Plugin_Continue;
-        }
-
-        int next_spec_client = GetNextClient(GetEntPropEnt(client, Prop_Send, "m_hObserverTarget"), true);
-        if (next_spec_client != -1)
-        {
-            SetClientSpectateTarget(client, next_spec_client);
-            // Consume the button(s) so they don't trigger further spectator target switches
-            buttons &= ~IN_AIM;
-            _prev_consumed_buttons[client] |= IN_AIM;
-        }
-        return Plugin_Continue;
-    }
-    else
-    {
-        _prev_consumed_buttons[client] = 0;
-    }
-
-
 
     // We should be doing a fancy camera pan of the new ghost spawn location
     if (_client_wants_autospec_ghost_spawn[client] && _is_currently_displaying_ghost_location)
