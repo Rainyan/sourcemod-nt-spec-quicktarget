@@ -41,6 +41,26 @@ These commands are recommended to be used as binds. They only work for players i
   * *sm_spec_last_killer* — Target on the last player who got a kill.
   * *sm_spec_last_ghoster* — Target on the last ghost carrier.
 
+* *sm_spec_pos* — Teleport to position.
+  * Recommended to be set up beforehand for interesting camera shots, and bound to keys for ease of use.
+  * You can use this by first using `getpos` at desired location, which returns your current position encoded as:
+    * `setpos <x> <y> <z>;setang <x> <y> <z>`
+  * Then, append `sm_spec_pos` with that `getpos` output, wrapped inside double quotes. For example:
+    * `sm_spec_pos "setpos 242.187500 717.187500 -66.406250;setang 5.447200 50.649540 0.000000"`
+  * You may optionally omit the `setang` portion of the encoded position string, if you don't want to modify the viewing angle.
+* *sm_spec_lerpto* — Lerp to position.
+  * The same as `sm_spec_pos`, but uses a smoothed\* transition between the positions instead of snapping instantly.
+    * *\*Depends on your server ping.*
+
+## Binds
+* `+thermoptic` — Camera orbit.
+  * Allows orbiting the camera around the center of the current view in third-person mode.
+  * The smoothness of this relies on your ping to the server; if you have high ping, doing a slow orbit may look nicer than a fast one.
+* `+up` — Move camera up.
+* `+down` — Move camera down.
+* Regular movement keys — Will automatically unlatch to free-fly mode, if currently latched onto a player.
+  * Convenient for not needing to press spacebar to leave a player when transitioning to free-fly mode.
+
 ## Cvars
 **TODO: turn these into cookies**
 
