@@ -58,6 +58,8 @@ These commands are recommended to be used as binds. They only work for players i
   * The smoothness of this relies on your ping to the server; if you have high ping, doing a slow orbit may look nicer than a fast one.
 * `+up` — Move camera up.
 * `+down` — Move camera down.
+* Regular movement keys — Will automatically unlatch to free-fly mode, if currently latched onto a player.
+  * Convenient for not needing to press spacebar to leave a player when transitioning to free-fly mode.
 
 ## Cvars
 **TODO: turn these into cookies**
