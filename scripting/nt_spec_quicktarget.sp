@@ -11,8 +11,6 @@
 
 #define PLUGIN_VERSION "1.1.2"
 
-#define NEO_MAX_PLAYERS 32
-
 #define OBS_MODE_FOLLOW 4
 #define OBS_MODE_FREEFLY 5
 
@@ -26,12 +24,12 @@
 
 //#define DEBUG
 
-static int _spec_userid_target[NEO_MAX_PLAYERS + 1];
-static bool _is_lerping_specview[NEO_MAX_PLAYERS + 1];
-static bool _is_following_grenade[NEO_MAX_PLAYERS + 1];
-static int _follow_explosive[NEO_MAX_PLAYERS + 1];
+static int _spec_userid_target[NEO_MAXPLAYERS + 1];
+static bool _is_lerping_specview[NEO_MAXPLAYERS + 1];
+static bool _is_following_grenade[NEO_MAXPLAYERS + 1];
+static int _follow_explosive[NEO_MAXPLAYERS + 1];
 // Doing this check ahead of time to avoid having to do it for every frame.
-static bool _is_spectator[NEO_MAX_PLAYERS + 1];
+static bool _is_spectator[NEO_MAXPLAYERS + 1];
 
 static int _last_attacker_userid;
 static int _last_killer_userid;
@@ -55,22 +53,22 @@ Handle _cookie_AutoSpecGhostSpawn = INVALID_HANDLE;
 Handle _cookie_NoFadeFromBlackOnAutoSpecGhost = INVALID_HANDLE;
 Handle _cookie_AutoRotate = INVALID_HANDLE;
 
-static bool _client_wants_autospec_ghost_spawn[NEO_MAX_PLAYERS + 1];
-static bool _client_wants_no_fade_for_autospec_ghost_spawn[NEO_MAX_PLAYERS + 1];
-static bool _client_wants_auto_rotate[NEO_MAX_PLAYERS + 1];
-static bool _client_wants_latch_to_closest[NEO_MAX_PLAYERS + 1];
-static bool _client_wants_latch_to_fastest[NEO_MAX_PLAYERS + 1];
+static bool _client_wants_autospec_ghost_spawn[NEO_MAXPLAYERS + 1];
+static bool _client_wants_no_fade_for_autospec_ghost_spawn[NEO_MAXPLAYERS + 1];
+static bool _client_wants_auto_rotate[NEO_MAXPLAYERS + 1];
+static bool _client_wants_latch_to_closest[NEO_MAXPLAYERS + 1];
+static bool _client_wants_latch_to_fastest[NEO_MAXPLAYERS + 1];
 
-static bool _client_wants_orbit[NEO_MAX_PLAYERS + 1];
-static float _orbit_pivot[NEO_MAX_PLAYERS + 1][3];
-static float _pivot_dist[NEO_MAX_PLAYERS + 1];
-static float _prev_look_dir[NEO_MAX_PLAYERS + 1][3];
+static bool _client_wants_orbit[NEO_MAXPLAYERS + 1];
+static float _orbit_pivot[NEO_MAXPLAYERS + 1][3];
+static float _pivot_dist[NEO_MAXPLAYERS + 1];
+static float _prev_look_dir[NEO_MAXPLAYERS + 1][3];
 
-static bool _client_wants_camera_run[NEO_MAX_PLAYERS + 1];
-static float _camera_run_location[NEO_MAX_PLAYERS + 1][3];
-static float _camera_run_angles[NEO_MAX_PLAYERS + 1][3];
+static bool _client_wants_camera_run[NEO_MAXPLAYERS + 1];
+static float _camera_run_location[NEO_MAXPLAYERS + 1][3];
+static float _camera_run_angles[NEO_MAXPLAYERS + 1][3];
 
-static int _client_wants_vertical[NEO_MAX_PLAYERS + 1];
+static int _client_wants_vertical[NEO_MAXPLAYERS + 1];
 
 public Plugin myinfo = {
     name = "NT Spectator Quick Target",
@@ -558,7 +556,7 @@ public void Event_RoundStart(Event event, const char[] name,
 
 void FadeSpecs()
 {
-    int specs[NEO_MAX_PLAYERS];
+    int specs[NEO_MAXPLAYERS];
     int num_specs;
 
     for (int client = 1; client <= MaxClients; ++client)
