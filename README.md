@@ -52,6 +52,12 @@ These commands are recommended to be used as binds. They only work for players i
   * The same as `sm_spec_pos`, but uses a smoothed\* transition between the positions instead of snapping instantly.
     * *\*Depends on your server ping.*
 
+## Binds
+* `+thermoptic` — Camera orbit.
+  * Allows orbiting the camera around the center of the current view in third-person mode.
+* `+up` — Move camera up.
+* `-down` — Move camera down.
+
 ## Cvars
 **TODO: turn these into cookies**
 
