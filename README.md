@@ -62,18 +62,17 @@ These commands are recommended to be used as binds. They only work for players i
   * Convenient for not needing to press spacebar to leave a player when transitioning to free-fly mode.
 * Sprint key + Attack — Shortcut for `sm_spec_latch_to_aim`
 
-## Cvars
-**TODO: turn these into cookies**
-
-These values can be set in the server with *"sm_cvar ..."*, or in config files.
-
-* *sm_spec_lerp_speed* — Server cvar for controlling the lerp speed. Default: 2. Range: (0.001 - 10).
-
 ## Cookies
 These per-client cookies are opt-in (default is off), and the value will persist on the server.
+
+### Binary cookies
 
 Supported values: 0 and 1. You can set these commands in the game console.
 
 * *sm_cookies spec_autorotate 0/1* — Whether to automatically rotate the camera towards the spectated target's orientation. Auto rotation is currently supported with the *sm_spec_last_...* binds, and when using mouse1/2 to select spectator targets.
 * *sm_cookies spec_newround_ghost 0/1* — Whether to automatically spectate the ghost spawn position on new rounds.
 * *sm_cookies spec_newround_ghost_no_fade 0/1* — By default, the *spec_newround_ghost* option will apply a short fade-from-black to hide the visual of the ghost spawning from thin air. This cookies controls whether to disable that fade effect.
+
+### Float cookies
+
+* *sm_cookies spec_lerp_scale 2.0* — Controls the lerp speed scale. Higher value results in a faster lerp. Default: 2.0. Allowed range: (0.001 - 10.0).
