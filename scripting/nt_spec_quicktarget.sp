@@ -9,7 +9,7 @@
 
 //#include "sp_shims.inc" // old compat shims, not required for currently supported SM range
 
-#define PLUGIN_VERSION "1.1.0"
+#define PLUGIN_VERSION "1.1.1"
 
 #define NEO_MAX_PLAYERS 32
 
@@ -178,7 +178,7 @@ public void OnPluginStart()
             _is_spectator[client] = (GetClientTeam(client) == TEAM_SPECTATOR);
         }
     }
-    RegConsoleCmd("sm_cookies", Cmd_Cookies);
+    AddCommandListener(OnCookies, "sm_cookies");
 }
 
 public Action CommandListener_SpecNext(int client, const char[] command, int argc)
@@ -220,14 +220,23 @@ public Action CommandListener_UpOff(int client, const char[] command, int argc)
     return Plugin_Handled;
 }
 
-public Action Cmd_Cookies(int client, int argc)
+public Action OnCookies(int client, const char[] command, int argc)
 {
-    if (AreClientCookiesCached(client))
+    if (argc == 2)
+    {
+        CreateTimer(3.0, Timer_AfterCookiesChanged, GetClientUserId(client));
+    }
+    return Plugin_Continue;
+}
+
+public Action Timer_AfterCookiesChanged(Handle timer, int userid)
+{
+    int client = GetClientOfUserId(userid);
+    if (client && IsClientInGame(client))
     {
         OnClientCookiesCached(client);
     }
-
-    return Plugin_Continue;
+    return Plugin_Stop;
 }
 
 #if defined REQUIRE_NT_GHOSTCAP_PLUGIN
