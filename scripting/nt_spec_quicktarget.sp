@@ -9,7 +9,7 @@
 
 //#include "sp_shims.inc" // old compat shims, not required for currently supported SM range
 
-#define PLUGIN_VERSION "1.1.2"
+#define PLUGIN_VERSION "1.1.3"
 
 #define OBS_MODE_FOLLOW 4
 #define OBS_MODE_FREEFLY 5
@@ -21,6 +21,8 @@
 
 // This is the distance from player the spectator camera is at when following them.
 #define FREEFLY_CAMERA_DISTANCE_FROM_TARGET 100.0
+
+#define PLUGIN_TAG "[SPEC]"
 
 //#define DEBUG
 
@@ -505,25 +507,23 @@ public void Event_PlayerTeam(Event event, const char[] name,
 {
     int userid = event.GetInt("userid");
     int this_client = GetClientOfUserId(userid);
-
-    if (this_client != 0)
-    {
-        _spec_userid_target[this_client] = 0;
-        _is_following_grenade[this_client] = false;
-        _is_spectator[this_client] = (event.GetInt("team") == TEAM_SPECTATOR);
-
-        // Cancel special spectate mode for anyone who was actively spectating this team-changing client.
-        for (int client = 1; client <= MaxClients; ++client)
-        {
-            if (_spec_userid_target[client] == userid)
-            {
-                _spec_userid_target[client] = 0;
-            }
-        }
-    }
-    else
+    if (!this_client || !IsClientInGame(this_client))
     {
         _is_spectator[this_client] = false;
+        return;
+    }
+
+    _spec_userid_target[this_client] = 0;
+    _is_following_grenade[this_client] = false;
+    _is_spectator[this_client] = (event.GetInt("team") == TEAM_SPECTATOR);
+
+    // Cancel special spectate mode for anyone who was actively spectating this team-changing client.
+    for (int client = 1; client <= MaxClients; ++client)
+    {
+        if (_spec_userid_target[client] == userid)
+        {
+            _spec_userid_target[client] = 0;
+        }
     }
 }
 
@@ -688,6 +688,10 @@ public Action Cmd_ToggleLerp(int client, int argc)
     if (GetClientTeam(client) == TEAM_SPECTATOR)
     {
         _is_lerping_specview[client] = !_is_lerping_specview[client];
+        PrintToConsole(client, "%s Spec lerp %sabled",
+            PLUGIN_TAG,
+            _is_lerping_specview[client]
+            ? "en" : "dis");
     }
     return Plugin_Handled;
 }
@@ -1406,21 +1410,20 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
     }
 
     int target_client = GetClientOfUserId(_spec_userid_target[client]);
+     // Make sure the target hasn't disconnected
+    if (target_client == 0 || !IsClientInGame(target_client) ||
+        // And make sure they're still alive
+        !IsPlayerAlive(target_client))
+    {
+        _spec_userid_target[client] = 0;
+        return Plugin_Continue;
+    }
 
     if (!_client_wants_camera_run[client])
     {
         // No spectator transition active
         if (_spec_userid_target[client] == 0)
         {
-            return Plugin_Continue;
-        }
-
-        // Make sure the target hasn't disconnected
-        if (target_client == 0 ||
-            // And make sure they're still alive
-            !IsPlayerAlive(target_client))
-        {
-            _spec_userid_target[client] = 0;
             return Plugin_Continue;
         }
     }
