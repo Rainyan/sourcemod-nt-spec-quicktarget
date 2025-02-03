@@ -12,7 +12,7 @@ SourceMod plugin for Neotokyo. Binds for quickly spectating where the action is.
 
 This plugin depends on the [nt_ghostcap](https://github.com/softashell/nt-sourcemod-plugins/blob/master/scripting/nt_ghostcap.sp) plugin.
 
-If for whatever reason you don't want to run the nt_ghostcap plugin, uncomment the _REQUIRE_NT_GHOSTCAP_PLUGIN_ define in the source code before compiling to disable ghost related features.
+If for whatever reason you don't want to run the nt_ghostcap plugin, uncomment the `REQUIRE_NT_GHOSTCAP_PLUGIN` define in the source code before compiling to disable ghost related features.
 
 # Usage
 
@@ -78,9 +78,9 @@ These per-client cookies are opt-in (default is off), and the value will persist
 
 Supported values: 0 and 1. You can set these commands in the game console.
 
-- _sm_cookies spec_autorotate 0/1_ — Whether to automatically rotate the camera towards the spectated target's orientation. Auto rotation is currently supported with the _sm*spec_last*..._ binds, and when using mouse1/2 to select spectator targets.
-- _sm_cookies spec_newround_ghost 0/1_ — Whether to automatically spectate the ghost spawn position on new rounds.
-- _sm_cookies spec_newround_ghost_no_fade 0/1_ — By default, the _spec_newround_ghost_ option will apply a short fade-from-black to hide the visual of the ghost spawning from thin air. This cookies controls whether to disable that fade effect.
+- _sm_cookies spec_autorotate 0/1_ — Whether to automatically rotate the camera towards the spectated target's orientation. Auto rotation is currently supported with the _sm*spec_last*..._ binds, and when using mouse1/2 to select spectator targets. Default: 1.
+- _sm_cookies spec_newround_ghost 0/1_ — Whether to automatically spectate the ghost spawn position on new rounds. Default: 0.
+- _sm_cookies spec_newround_ghost_no_fade 0/1_ — By default, the _spec_newround_ghost_ option will apply a short fade-from-black to hide the visual of the ghost spawning from thin air. This cookies controls whether to disable that fade effect. Default: 0.
 
 ### Float cookies
 

@@ -8,7 +8,7 @@
 #pragma semicolon 1
 #pragma newdecls required
 
-#define PLUGIN_VERSION "2.0.2"
+#define PLUGIN_VERSION "3.0.0"
 
 // This plugin relies on the nt_ghostcap plugin for detecting ghost events.
 // If for whatever reason you don't want to run that plugin, comment out this define
@@ -25,6 +25,7 @@
 // This is the distance from player the spectator camera is at when following them.
 #define FREEFLY_CAMERA_DISTANCE_FROM_TARGET 100.0
 
+#define DEFAULT_AUTOROTATE true
 #define DEFAULT_LERP_SCALE 2.0
 
 static int _spec_userid_target[NEO_MAXPLAYERS + 1],
@@ -415,7 +416,7 @@ public void OnClientCookiesCached(int client)
 #if SOURCEMOD_V_MAJOR >= 1 && SOURCEMOD_V_MINOR >= 12
     _client_wants_autospec_ghost_spawn[client] = _cookie_AutoSpecGhostSpawn.GetInt(client, 0) != 0;
     _client_wants_no_fade_for_autospec_ghost_spawn[client] = _cookie_NoFadeFromBlackOnAutoSpecGhost.GetInt(client, 0) != 0;
-    _client_wants_auto_rotate[client] = _cookie_AutoRotate.GetInt(client, 0) != 0;
+    _client_wants_auto_rotate[client] = _cookie_AutoRotate.GetInt(client, DEFAULT_AUTOROTATE) != 0;
     _client_lerp_scale[client] = Min(10.0, Max(0.001, _cookie_LerpScale.GetFloat(client, DEFAULT_LERP_SCALE)));
 #else
     char wants_ghost_spawn_spec[2],
@@ -428,9 +429,17 @@ public void OnClientCookiesCached(int client)
     GetClientCookie(client, _cookie_AutoRotate, wants_auto_rotate, sizeof(wants_auto_rotate));
     GetClientCookie(client, _cookie_LerpScale, lerp_scale, sizeof(lerp_scale));
 
+    if (wants_auto_rotate[0] == 0)
+    {
+        _client_wants_auto_rotate[client] = DEFAULT_AUTOROTATE;
+    }
+    else
+    {
+        _client_wants_auto_rotate[client] = wants_auto_rotate[0] != '0';
+    }
+
     _client_wants_autospec_ghost_spawn[client] = (wants_ghost_spawn_spec[0] != 0 && wants_ghost_spawn_spec[0] != '0');
     _client_wants_no_fade_for_autospec_ghost_spawn[client] = (wants_no_fade[0] != 0 && wants_no_fade[0] != '0');
-    _client_wants_auto_rotate[client] = (wants_auto_rotate[0] != 0 && wants_auto_rotate[0] != '0');
     _client_lerp_scale[client] = Min(10.0, Max(0.001, StringToFloat(lerp_scale)));
 #endif
 }
