@@ -8,7 +8,7 @@
 #pragma semicolon 1
 #pragma newdecls required
 
-#define PLUGIN_VERSION "3.0.0"
+#define PLUGIN_VERSION "3.0.1"
 
 // This plugin relies on the nt_ghostcap plugin for detecting ghost events.
 // If for whatever reason you don't want to run that plugin, comment out this define
@@ -41,8 +41,8 @@ static int _last_attacker_userid,
     _last_event_userid_generic,
     _last_hurt_userid,
     _last_shooter_userid,
-    _last_live_grenade,
-    _last_ghost;
+    _last_live_grenade;
+static int _last_ghost = INVALID_ENT_REFERENCE;
 #if defined REQUIRE_NT_GHOSTCAP_PLUGIN
 static int _last_ghost_carrier_userid;
 #endif
@@ -80,6 +80,14 @@ public Plugin myinfo = {
     version = PLUGIN_VERSION,
     url = "https://github.com/Rainyan/sourcemod-nt-spec-quicktarget"
 };
+
+static bool _late;
+
+public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max)
+{
+    _late = late;
+    return APLRes_Success;
+}
 
 public void OnPluginStart()
 {
@@ -172,6 +180,40 @@ public void OnPluginStart()
         "NT Spectator Quick Target plugin: Lerp scale.",
         access));
 
+    if (_late)
+    {
+        CreateTimer(1.0, Timer_Cookies);
+        int max_ents = GetMaxEntities();
+        for (int ent = MaxClients+1; ent < max_ents; ++ent)
+        {
+            if (IsValidEntity(ent) && IsGhost(ent))
+            {
+                _last_ghost = EntIndexToEntRef(ent);
+                if (_last_ghost == INVALID_ENT_REFERENCE)
+                {
+                    LogError("Failed to get entity index reference for ghost ent %d", ent);
+                }
+                break;
+            }
+        }
+    }
+
+    AddCommandListener(OnCookies, "sm_cookies");
+}
+
+bool IsGhost(int ent)
+{
+    char name[12+1];
+    if (!GetEntityClassname(ent, name, sizeof(name)))
+    {
+        return false;
+    }
+    return StrEqual(name, "weapon_ghost");
+}
+
+
+public Action Timer_Cookies(Handle timer)
+{
     for (int client = 1; client <= MaxClients; ++client)
     {
         if (AreClientCookiesCached(client))
@@ -183,7 +225,7 @@ public void OnPluginStart()
             _is_spectator[client] = (GetClientTeam(client) == TEAM_SPECTATOR);
         }
     }
-    AddCommandListener(OnCookies, "sm_cookies");
+    return Plugin_Stop;
 }
 
 // Even though the game handles spec_next/spec_prev natively,
@@ -466,17 +508,25 @@ public void OnClientDisconnected(int client)
     _client_wants_vertical[client] = 0;
 }
 
+#if defined REQUIRE_NT_GHOSTCAP_PLUGIN
+public void OnGhostSpawn(int ghost_ref)
+{
+    _last_ghost = ghost_ref;
+}
+#endif
+
 public void OnEntityCreated(int entity, const char[] classname)
 {
     if (StrEqual(classname, "grenade_projectile"))
     {
         _last_live_grenade = entity;
     }
-    // TODO: Use OnGhostSpawn
+#if !defined REQUIRE_NT_GHOSTCAP_PLUGIN
     else if (StrEqual(classname, "weapon_ghost"))
     {
         _last_ghost = EntIndexToEntRef(entity);
     }
+#endif
 }
 
 public void OnEntityDestroyed(int entity)
@@ -569,7 +619,7 @@ public void Event_RoundStart(Event event, const char[] name, bool dontBroadcast)
         {
             KillTimer(g_hTimer_FinishDisplayGhostSpawnLocation);
         }
-        g_hTimer_FinishDisplayGhostSpawnLocation = CreateTimer(5.0, Timer_FinishDisplayGhostSpawnLocation);
+        g_hTimer_FinishDisplayGhostSpawnLocation = CreateTimer(2.5, Timer_FinishDisplayGhostSpawnLocation);
 
         FadeSpecs();
     }
