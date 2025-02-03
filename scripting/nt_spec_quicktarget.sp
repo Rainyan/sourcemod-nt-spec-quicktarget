@@ -8,7 +8,7 @@
 #pragma semicolon 1
 #pragma newdecls required
 
-#define PLUGIN_VERSION "3.0.2"
+#define PLUGIN_VERSION "3.0.3"
 
 // This plugin relies on the nt_ghostcap plugin for detecting ghost events.
 // If for whatever reason you don't want to run that plugin, comment out this define
@@ -687,29 +687,37 @@ public void OnGhostPickUp(int client)
 public Action Cmd_ListBinds(int client, int argc)
 {
     PrintToConsole(client, "\n== NT Spectator Quick Target bindings ==\n\
-sm_binds — This bindings list.\n\
+\tsm_binds — This bindings list.\n\
 \n\
-sm_spec_slot <1-10> — Binds for spectating specific players in a 5v5 match \
+\tsm_spec_slot <1-10> — Binds for spectating specific players in a 5v5 match \
 context, by ascending client index number.\n\
 The indices 1-5 represent Jinrai team, and indices 6-10 NSF team.\n\
 \n\
-sm_spec_caster_slot <1-32> — Binds for spectating other spectators' targets, \
+\tsm_spec_caster_slot <1-32> — Binds for spectating other spectators' targets, \
 by ascending client index number.\n\
 \n\
-sm_spec_toggle_lerp — Toggle lerping between the spectating events.\n\
-sm_spec_lerp_speed — Server cvar for controlling the lerp speed (sm_cvar ...).\n\
+\tsm_spec_toggle_lerp — Toggle lerping between the spectating events.\n\
 \n\
-sm_spec_latch_to_closest — Spectate the player closest to camera position.\n\
-sm_spec_latch_to_fastest — Spectate the fastest moving player.\n\
-sm_spec_follow_grenade — Follow the last live HE grenade.\n\
+\tsm_spec_latch_to_closest — Spectate the player closest to camera position.\n\
+\tsm_spec_latch_to_fastest — Spectate the fastest moving player.\n\
+\tsm_spec_latch_to_aim — Spectate the player aimed at by the camera (also through walls).\n\
+\tsm_spec_follow_grenade — Follow the last live HE grenade.\n\
 \n\
-sm_spec_last_hurt — Target on the last player who was damaged.\n\
-sm_spec_last_shooter — Target on the last player who fired their weapon.\n\
+\tsm_spec_last_hurt — Target on the last player who was damaged.");
+#if defined REQUIRE_NT_GHOSTCAP_PLUGIN
+    PrintToConsole(client, "\n\
+\tsm_spec_last_ghoster — Target on the last ghost carrier.");
+#endif
+    PrintToConsole(client, "\n\
+\tsm_spec_last_shooter — Target on the last player who fired their weapon.\n\
 \n\
-sm_spec_last_event — Target on the latest event of any kind from the list below:\n\
+\tsm_spec_last_event — Target on the latest event of any kind from the list below:\n\
 \n\
 \tsm_spec_last_attacker — Target on the last player who did damage.\n\
-\tsm_spec_last_killer — Target on the last player who got a kill.");
+\tsm_spec_last_killer — Target on the last player who got a kill.\n\
+\n\
+\tsm_spec_pos — Teleport to pos.\n\
+\tsm_spec_lerpto — Lerp to pos.");
 #if defined REQUIRE_NT_GHOSTCAP_PLUGIN
     PrintToConsole(client, "\tsm_spec_last_ghoster — Target on the last ghost carrier.");
 #endif
