@@ -8,7 +8,7 @@
 #pragma semicolon 1
 #pragma newdecls required
 
-#define PLUGIN_VERSION "3.0.1"
+#define PLUGIN_VERSION "3.0.2"
 
 // This plugin relies on the nt_ghostcap plugin for detecting ghost events.
 // If for whatever reason you don't want to run that plugin, comment out this define
@@ -1157,7 +1157,7 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
         float cur_dist = GetVectorDistance(start_pos, _orbit_pivot[client], false);
         if (new_orbit)
         {
-#define MIN_ORBIT_DIST 64.0
+#define MIN_ORBIT_DIST FREEFLY_CAMERA_DISTANCE_FROM_TARGET
             _pivot_dist[client] = Max(cur_dist, MIN_ORBIT_DIST);
         }
 
