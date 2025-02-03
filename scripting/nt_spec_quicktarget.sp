@@ -8,7 +8,7 @@
 #pragma semicolon 1
 #pragma newdecls required
 
-#define PLUGIN_VERSION "2.0.1"
+#define PLUGIN_VERSION "2.0.2"
 
 // This plugin relies on the nt_ghostcap plugin for detecting ghost events.
 // If for whatever reason you don't want to run that plugin, comment out this define
@@ -51,10 +51,10 @@ static float _ghost_display_location[3];
 
 ConVar g_hCvar_SpecSpeed = null;
 
-Handle _cookie_AutoSpecGhostSpawn = INVALID_HANDLE,
-    _cookie_NoFadeFromBlackOnAutoSpecGhost = INVALID_HANDLE,
-    _cookie_AutoRotate = INVALID_HANDLE,
-    _cookie_LerpScale = INVALID_HANDLE;
+static Cookie _cookie_AutoSpecGhostSpawn = null,
+    _cookie_NoFadeFromBlackOnAutoSpecGhost = null,
+    _cookie_AutoRotate = null,
+    _cookie_LerpScale = null;
 
 static bool _client_wants_autospec_ghost_spawn[NEO_MAXPLAYERS + 1],
     _client_wants_no_fade_for_autospec_ghost_spawn[NEO_MAXPLAYERS + 1],
@@ -158,18 +158,18 @@ public void OnPluginStart()
     }
 
     CookieAccess access = CookieAccess_Public;
-    _cookie_AutoSpecGhostSpawn = RegClientCookie("spec_newround_ghost",
+    _cookie_AutoSpecGhostSpawn = view_as<Cookie>(RegClientCookie("spec_newround_ghost",
         "NT Spectator Quick Target plugin: Whether to automatically spectate the ghost spawn position on new rounds.",
-        access);
-    _cookie_NoFadeFromBlackOnAutoSpecGhost = RegClientCookie("spec_newround_ghost_no_fade",
+        access));
+    _cookie_NoFadeFromBlackOnAutoSpecGhost = view_as<Cookie>(RegClientCookie("spec_newround_ghost_no_fade",
         "NT Spectator Quick Target plugin: Whether to disable the fade-from-black effect when speccing a ghost spawn.",
-        access);
-    _cookie_AutoRotate = RegClientCookie("spec_autorotate",
+        access));
+    _cookie_AutoRotate = view_as<Cookie>(RegClientCookie("spec_autorotate",
         "NT Spectator Quick Target plugin: Automatically rotate according to spectator direction.",
-        access);
-    _cookie_LerpScale = RegClientCookie("spec_lerp_scale",
+        access));
+    _cookie_LerpScale = view_as<Cookie>(RegClientCookie("spec_lerp_scale",
         "NT Spectator Quick Target plugin: Lerp scale.",
-        access);
+        access));
 
     for (int client = 1; client <= MaxClients; ++client)
     {
@@ -412,6 +412,12 @@ void SetClientSpectateProxyTarget(int client, int proxy)
 
 public void OnClientCookiesCached(int client)
 {
+#if SOURCEMOD_V_MAJOR >= 1 && SOURCEMOD_V_MINOR >= 12
+    _client_wants_autospec_ghost_spawn[client] = _cookie_AutoSpecGhostSpawn.GetInt(client, 0) != 0;
+    _client_wants_no_fade_for_autospec_ghost_spawn[client] = _cookie_NoFadeFromBlackOnAutoSpecGhost.GetInt(client, 0) != 0;
+    _client_wants_auto_rotate[client] = _cookie_AutoRotate.GetInt(client, 0) != 0;
+    _client_lerp_scale[client] = Min(10.0, Max(0.001, _cookie_LerpScale.GetFloat(client, DEFAULT_LERP_SCALE)));
+#else
     char wants_ghost_spawn_spec[2],
         wants_no_fade[2],
         wants_auto_rotate[2],
@@ -426,6 +432,7 @@ public void OnClientCookiesCached(int client)
     _client_wants_no_fade_for_autospec_ghost_spawn[client] = (wants_no_fade[0] != 0 && wants_no_fade[0] != '0');
     _client_wants_auto_rotate[client] = (wants_auto_rotate[0] != 0 && wants_auto_rotate[0] != '0');
     _client_lerp_scale[client] = Min(10.0, Max(0.001, StringToFloat(lerp_scale)));
+#endif
 }
 
 public void OnClientDisconnected(int client)
