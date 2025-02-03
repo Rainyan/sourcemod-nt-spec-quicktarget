@@ -16,7 +16,9 @@ If for whatever reason you don't want to run the nt_ghostcap plugin, uncomment t
 
 # Usage
 
-Also see [the wiki](https://github.com/Rainyan/sourcemod-nt-spec-quicktarget/wiki/So-You-Wanna-Be-An-Observer) for more info, example configs, etc.
+For detailed information, see the sections below in this document.
+
+There's also [the wiki](https://github.com/Rainyan/sourcemod-nt-spec-quicktarget/wiki/So-You-Wanna-Be-An-Observer) for more info, example configs, etc.
 
 ## Console commands
 
